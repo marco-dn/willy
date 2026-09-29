@@ -8,6 +8,8 @@ export type ResolveCommandOptions = {
   env?: NodeJS.ProcessEnv
   /** CWD used only for the win32 "search current directory first" rule. */
   cwd?: string
+  /** Disable Windows' implicit current-directory search for host tools. */
+  searchCurrentDirectory?: boolean
 }
 
 // Why: Windows env keys are case-insensitive (PATH is usually stored as `Path`,
@@ -68,8 +70,15 @@ export async function isCommandOnLocalPath(
   command: string,
   options: ResolveCommandOptions = {}
 ): Promise<boolean> {
+  return (await resolveCommandOnLocalPath(command, options)) !== null
+}
+
+export async function resolveCommandOnLocalPath(
+  command: string,
+  options: ResolveCommandOptions = {}
+): Promise<string | null> {
   if (!command) {
-    return false
+    return null
   }
   const platform = options.platform ?? process.platform
   const env = options.env ?? process.env
@@ -84,7 +93,11 @@ export async function isCommandOnLocalPath(
   const pathDirs = (readEnvCaseInsensitive(env, 'PATH') ?? '').split(delimiter)
   // Why: a slash short-circuits PATH (resolve the command directly), matching
   // which(1). On win32, where.exe searches the current directory first.
-  const searchDirs = hasPathSeparator ? [''] : isWin ? [cwd, ...pathDirs] : pathDirs
+  const searchDirs = hasPathSeparator
+    ? ['']
+    : isWin && options.searchCurrentDirectory !== false
+      ? [cwd, ...pathDirs]
+      : pathDirs
   const extensions = isWin ? getWindowsExtensions(env, command) : ['']
 
   for (const dir of searchDirs) {
@@ -98,9 +111,9 @@ export async function isCommandOnLocalPath(
         continue
       }
       if (await isExecutableFile(candidate, isWin)) {
-        return true
+        return candidate
       }
     }
   }
-  return false
+  return null
 }

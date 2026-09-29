@@ -11,6 +11,31 @@
     "retrying": "正在重试..."
   },
   "settings": {
+    "sandbox": {
+      "title": "Sandbox",
+      "description": "检查此计算机上的 Docker Sandboxes。",
+      "diagnostics": "诊断",
+      "mounts": "共享文件夹",
+      "cliMissing": "未找到 sbx。请安装 Docker Sandboxes，将 sbx 添加到 PATH，然后重启 Willy。",
+      "serviceUnavailable": "本地 sbx 服务不可用。请在主机终端运行 sbx diagnose，然后刷新。",
+      "timeout": "sbx 响应超时。请在主机终端运行 sbx diagnose，然后刷新。",
+      "invalidResponse": "sbx 返回了不受支持或不完整的响应。请检查 Docker Sandboxes 安装，然后刷新。",
+      "commandFailed": "sbx 检查失败。请在主机终端运行 sbx diagnose；如果需要身份验证，请运行 sbx login，然后刷新。",
+      "running": "运行中",
+      "stopped": "已停止",
+      "observedStatus": "报告的状态：{{state}}",
+      "refresh": "刷新",
+      "checking": "正在检查本地 sbx…",
+      "ipcFailed": "无法加载沙箱诊断。请刷新重试。",
+      "installGuide": "Docker Sandboxes 安装指南",
+      "readOnly": "只读检查。沙箱创建和项目关联功能尚不可用。",
+      "clientVersion": "sbx CLI：{{version}}",
+      "serverVersion": "sbx 服务：{{version}}",
+      "empty": "未找到本地沙箱。",
+      "list": "本地沙箱",
+      "agent": "智能体：{{agent}}",
+      "noMounts": "未报告共享文件夹。"
+    },
     "appearance": {
       "language": {
         "title": "语言",

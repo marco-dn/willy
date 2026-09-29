@@ -5,6 +5,7 @@ import { getPluginsPaneSearchEntries } from '@/components/settings/plugins-searc
 import { getPrivacyPaneSearchEntries } from '@/components/settings/privacy-search'
 import { getRepositoryPaneSearchEntries } from '@/components/settings/repository-search'
 import { buildSettingsProjectList } from '@/components/settings/settings-project-list'
+import { getSandboxPaneSearchEntries } from '@/components/settings/sandbox-search'
 import { getSshPaneSearchEntries } from '@/components/settings/ssh-search'
 import { translate } from '@/i18n/i18n'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
@@ -12,6 +13,7 @@ import { getRepoKindLabel } from '../../../shared/repo-kind'
 import type { Repo } from '../../../shared/repo-types'
 import {
   Blocks,
+  Box,
   Bug,
   Cable,
   FlaskConical,
@@ -41,6 +43,17 @@ export function buildRemoteSettingsSections(
             ),
             icon: Cable,
             searchEntries: getSshPaneSearchEntries(),
+            group: 'remote'
+          },
+          {
+            id: 'sandbox',
+            title: translate('settings.sandbox.title', 'Sandbox'),
+            description: translate(
+              'settings.sandbox.description',
+              'Inspect Docker Sandboxes on this computer.'
+            ),
+            icon: Box,
+            searchEntries: getSandboxPaneSearchEntries(),
             group: 'remote'
           }
         ]

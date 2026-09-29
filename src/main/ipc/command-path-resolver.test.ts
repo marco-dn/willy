@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { isCommandOnLocalPath } from './command-path-resolver'
+import { isCommandOnLocalPath, resolveCommandOnLocalPath } from './command-path-resolver'
 
 describe('isCommandOnLocalPath', () => {
   it('returns false for an empty command', async () => {
@@ -83,6 +83,26 @@ describe('isCommandOnLocalPath', () => {
     })
     afterAll(async () => {
       await rm(dir, { recursive: true, force: true })
+    })
+
+    it('can exclude the implicit working directory when resolving host tools', async () => {
+      const options = { platform: 'win32' as const, env: { Path: '', PATHEXT: '.CMD' }, cwd: dir }
+      await expect(resolveCommandOnLocalPath('tool', options)).resolves.toBe(
+        path.posix.join(dir, 'tool.CMD')
+      )
+      await expect(
+        resolveCommandOnLocalPath('tool', { ...options, searchCurrentDirectory: false })
+      ).resolves.toBeNull()
+    })
+
+    it('returns an absolute PATH match without searching the working directory', async () => {
+      await expect(
+        resolveCommandOnLocalPath('tool', {
+          platform: 'win32',
+          env: { Path: dir, PATHEXT: '.CMD' },
+          searchCurrentDirectory: false
+        })
+      ).resolves.toBe(path.posix.join(dir, 'tool.CMD'))
     })
 
     it('resolves a bare command via PATHEXT using the case-insensitive Path key', async () => {

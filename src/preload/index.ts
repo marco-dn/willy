@@ -8,6 +8,7 @@ import { appApi } from './api/app-bridge'
 import { orcaProfilesApi } from './api/orca-profiles-bridge'
 import { platformApi } from './api/platform-bridge'
 import { wslApi } from './api/wsl-bridge'
+import { sandboxesApi } from './api/sandboxes-bridge'
 import { pwshApi } from './api/pwsh-bridge'
 import { gitBashApi } from './api/git-bash-bridge'
 import { pluginsApi } from './api/plugins-bridge'
@@ -104,6 +105,7 @@ const api = {
   orcaProfiles: orcaProfilesApi,
   platform: platformApi,
   wsl: wslApi,
+  sandboxes: sandboxesApi,
   pwsh: pwshApi,
   gitBash: gitBashApi,
   plugins: pluginsApi,

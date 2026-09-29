@@ -30,6 +30,20 @@ function ids(
 }
 
 describe('settings navigation metadata', () => {
+  it('places searchable sandbox diagnostics next to SSH on desktop', () => {
+    const sections = buildSettingsNavigationMetadata({
+      isMac: false,
+      isWindows: false,
+      isWebClient: false,
+      repos: [repo]
+    })
+    const sandbox = sections.find((section) => section.id === 'sandbox')
+    expect(sandbox?.group).toBe('remote')
+    expect(sandbox?.searchEntries.flatMap((entry) => entry.keywords)).toContain('sbx')
+    const sectionIds = sections.map((section) => section.id)
+    expect(sectionIds.indexOf('sandbox')).toBe(sectionIds.indexOf('ssh') + 1)
+  })
+
   it('puts AI capability panes at the top on desktop', () => {
     expect(ids().slice(0, 10)).toEqual([
       'agents',
@@ -155,6 +169,7 @@ describe('settings navigation metadata', () => {
 
     expect(webIds).not.toContain('browser')
     expect(webIds).not.toContain('ssh')
+    expect(webIds).not.toContain('sandbox')
     expect(webIds).not.toContain('mobile')
     expect(webIds).not.toContain('computer-use')
     expect(webIds).not.toContain('voice')

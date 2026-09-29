@@ -11,6 +11,31 @@
     "retrying": "再試行中…"
   },
   "settings": {
+    "sandbox": {
+      "title": "Sandbox",
+      "description": "このコンピューターの Docker Sandboxes を確認します。",
+      "diagnostics": "診断",
+      "mounts": "共有フォルダー",
+      "cliMissing": "sbx が見つかりません。Docker Sandboxes をインストールし、sbx を PATH に追加してから Willy を再起動してください。",
+      "serviceUnavailable": "ローカルの sbx サービスにアクセスできません。ホストのターミナルで sbx diagnose を実行してから更新してください。",
+      "timeout": "sbx の応答がタイムアウトしました。ホストのターミナルで sbx diagnose を実行してから更新してください。",
+      "invalidResponse": "sbx の応答が未対応または不完全です。Docker Sandboxes のインストールを確認してから更新してください。",
+      "commandFailed": "sbx の確認に失敗しました。ホストのターミナルで sbx diagnose を実行し、認証が必要な場合は sbx login を実行してから更新してください。",
+      "running": "実行中",
+      "stopped": "停止中",
+      "observedStatus": "報告された状態: {{state}}",
+      "refresh": "更新",
+      "checking": "ローカルの sbx を確認中…",
+      "ipcFailed": "サンドボックスの診断を読み込めませんでした。更新して再試行してください。",
+      "installGuide": "Docker Sandboxes インストールガイド",
+      "readOnly": "読み取り専用の確認です。サンドボックスの作成とプロジェクトの関連付けはまだ利用できません。",
+      "clientVersion": "sbx CLI: {{version}}",
+      "serverVersion": "sbx サービス: {{version}}",
+      "empty": "ローカルのサンドボックスが見つかりません。",
+      "list": "ローカルのサンドボックス",
+      "agent": "エージェント: {{agent}}",
+      "noMounts": "共有フォルダーは報告されていません。"
+    },
     "appearance": {
       "language": {
         "title": "言語",

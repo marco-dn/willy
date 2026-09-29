@@ -110,6 +110,31 @@
     "retrying": "Nouvelle tentative…"
   },
   "settings": {
+    "sandbox": {
+      "title": "Sandbox",
+      "description": "Inspectez Docker Sandboxes sur cet ordinateur.",
+      "diagnostics": "Diagnostic",
+      "mounts": "Dossiers partagés",
+      "cliMissing": "sbx est introuvable. Installez Docker Sandboxes, ajoutez sbx au PATH, puis redémarrez Willy.",
+      "serviceUnavailable": "Le service sbx local est indisponible. Exécutez sbx diagnose dans un terminal de cet ordinateur, puis actualisez.",
+      "timeout": "sbx n’a pas répondu à temps. Exécutez sbx diagnose dans un terminal de cet ordinateur, puis actualisez.",
+      "invalidResponse": "sbx a renvoyé une réponse incompatible ou incomplète. Vérifiez votre installation de Docker Sandboxes, puis actualisez.",
+      "commandFailed": "La vérification de sbx a échoué. Exécutez sbx diagnose dans un terminal de cet ordinateur ; si une authentification est requise, exécutez sbx login. Puis actualisez.",
+      "running": "En cours d’exécution",
+      "stopped": "Arrêté",
+      "observedStatus": "État signalé : {{state}}",
+      "refresh": "Actualiser",
+      "checking": "Vérification de sbx local…",
+      "ipcFailed": "Impossible de charger le diagnostic des sandbox. Actualisez pour réessayer.",
+      "installGuide": "Guide d’installation de Docker Sandboxes",
+      "readOnly": "Inspection en lecture seule. La création de sandbox et l’association de projets ne sont pas encore disponibles.",
+      "clientVersion": "CLI sbx : {{version}}",
+      "serverVersion": "Service sbx : {{version}}",
+      "empty": "Aucune sandbox locale trouvée.",
+      "list": "Sandbox locales",
+      "agent": "Agent : {{agent}}",
+      "noMounts": "Aucun dossier partagé signalé."
+    },
     "appearance": {
       "language": {
         "title": "Langue",

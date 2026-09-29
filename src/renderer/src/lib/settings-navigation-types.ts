@@ -34,6 +34,7 @@ const SETTINGS_NAV_TARGETS = [
   'shortcuts',
   'stats',
   'ssh',
+  'sandbox',
   'experimental',
   'plugins',
   'agents',

@@ -1,6 +1,7 @@
 import { DeveloperPermissionsPane } from './DeveloperPermissionsPane'
 import { PrivacyPane } from './PrivacyPane'
 import { RuntimeEnvironmentsPane } from './RuntimeEnvironmentsPane'
+import { SandboxPane } from './SandboxPane'
 import { SshPane } from './SshPane'
 import { SettingsSection } from './SettingsSection'
 import { translate } from '@/i18n/i18n'
@@ -54,6 +55,25 @@ export function renderSshSettingsSection(context: SettingsRenderContext): React.
       {view.isSectionMounted('ssh') ? (
         <SshPane addTargetIntentSignal={model.sshHostAddIntentSignal} />
       ) : null}
+    </SettingsSection>
+  ) : null
+}
+
+export function renderSandboxSettingsSection(
+  context: SettingsRenderContext
+): React.JSX.Element | null {
+  const { model, navigation, view } = context
+  return model.showDesktopOnlySettings ? (
+    <SettingsSection
+      id="sandbox"
+      title={translate('settings.sandbox.title', 'Sandbox')}
+      description={translate(
+        'settings.sandbox.description',
+        'Inspect Docker Sandboxes on this computer.'
+      )}
+      searchEntries={navigation.getSectionSearchEntries('sandbox')}
+    >
+      {view.isSectionMounted('sandbox') ? <SandboxPane /> : null}
     </SettingsSection>
   ) : null
 }
