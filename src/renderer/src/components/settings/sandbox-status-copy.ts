@@ -1,3 +1,4 @@
+import type { SandboxProvisionStage } from '../../../../shared/sandbox-provisioning-types'
 import { translate } from '@/i18n/i18n'
 import type { SandboxInspectionError } from '../../../../shared/sandbox-types'
 
@@ -41,5 +42,34 @@ export function sandboxStatusCopy(status: string): string {
       return translate('settings.sandbox.observedStatus', 'Reported state: {{state}}', {
         state: status
       })
+  }
+}
+
+export function sandboxPhaseCopy(stage: SandboxProvisionStage): string {
+  switch (stage) {
+    case 'sandbox':
+      return translate('settings.sandbox.phaseSandbox', 'Create / validate sandbox')
+    case 'ssh':
+      return translate('settings.sandbox.phaseSsh', 'Configure SSH')
+    case 'network':
+      return translate('settings.sandbox.phaseNetwork', 'Temporary network access')
+    case 'base':
+      return translate('settings.sandbox.phaseBase', 'Install required base')
+    case 'verify':
+      return translate('settings.sandbox.phaseVerify', 'Verify installed tools')
+    case 'connect':
+      return translate('settings.sandbox.phaseConnect', 'Connect SSH host')
+    case 'cleanup':
+      return translate('settings.sandbox.phaseCleanup', 'Restore network rules')
+    case 'claude':
+      return 'Claude Code'
+    case 'codex':
+      return 'Codex CLI'
+    case 'databricks':
+      return 'Databricks CLI'
+    case 'uv':
+      return 'uv'
+    case 'orca-skills':
+      return translate('settings.sandbox.orcaSkills', 'Orca skills')
   }
 }

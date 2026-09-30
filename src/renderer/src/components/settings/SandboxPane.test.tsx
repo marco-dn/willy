@@ -24,7 +24,7 @@ const ready: SandboxInspection = {
 
 beforeEach(() => {
   inspect.mockReset()
-  vi.stubGlobal('api', { sandboxes: { inspect } })
+  vi.stubGlobal('api', { sandboxes: { inspect, listManaged: vi.fn().mockResolvedValue([]) } })
 })
 afterEach(() => {
   cleanup()

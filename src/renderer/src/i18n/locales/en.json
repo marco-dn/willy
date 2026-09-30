@@ -129,7 +129,7 @@
   "settings": {
     "sandbox": {
       "title": "Sandbox",
-      "description": "Inspect Docker Sandboxes on this computer.",
+      "description": "Create, provision and inspect Docker Sandboxes on this computer.",
       "diagnostics": "Diagnostics",
       "mounts": "Shared folders",
       "cliMissing": "sbx was not found. Install Docker Sandboxes, make sbx available on PATH, then restart Willy.",
@@ -150,7 +150,37 @@
       "empty": "No local sandboxes found.",
       "list": "Local sandboxes",
       "agent": "Agent: {{agent}}",
-      "noMounts": "No shared folders reported."
+      "noMounts": "No shared folders reported.",
+      "provisioningLimit": "Project linking and credential setup are not available yet.",
+      "configure": "Configure sandbox",
+      "provisionNotice": "Provisioning starts the sandbox and installs the selected tools. You can close settings while it runs. Deselecting a tool does not uninstall it.",
+      "name": "Name",
+      "mountPath": "Shared folder on this computer",
+      "browse": "Choose folder",
+      "createFolder": "Create this folder if it does not exist",
+      "baseTools": "Required base: Python, Git, curl, Node.js, npm, build tools, just and zsh.",
+      "optionalTools": "Optional tools",
+      "orcaSkills": "Orca skills",
+      "networkNotice": "Outbound TCP access is temporarily opened for installation, then the rule created by Willy is removed. Existing and organization policies are preserved. No credentials are requested.",
+      "close": "Close",
+      "starting": "Starting…",
+      "provision": "Start provisioning",
+      "provisioning": "Provisioning",
+      "create": "Create sandbox",
+      "adopt": "Adopt {{name}}",
+      "ready": "Ready",
+      "interrupted": "Interrupted",
+      "incomplete": "Incomplete",
+      "phase": "Phase: {{phase}}",
+      "logs": "Recent logs",
+      "resume": "Resume / configure",
+      "phaseSandbox": "Create / validate sandbox",
+      "phaseSsh": "Configure SSH",
+      "phaseNetwork": "Temporary network access",
+      "phaseBase": "Install required base",
+      "phaseVerify": "Verify installed tools",
+      "phaseConnect": "Connect SSH host",
+      "phaseCleanup": "Restore network rules"
     },
     "appearance": {
       "language": {
@@ -3302,7 +3332,7 @@
             "missing": {
               "tui": {
                 "title": "This ZCode build has no terminal UI",
-                "description": "Orca's hooks installed correctly \u2014 the zcode on your PATH just cannot open a session. The ZCode desktop app bundles the agent runtime without its terminal UI. Install a zcode that ships the TUI, then run zcode outside Orca to confirm."
+                "description": "Orca's hooks installed correctly — the zcode on your PATH just cannot open a session. The ZCode desktop app bundles the agent runtime without its terminal UI. Install a zcode that ships the TUI, then run zcode outside Orca to confirm."
               }
             }
           },
@@ -4001,7 +4031,9 @@
             }
           },
           "tooltip": {
-            "zcode": { "mcp": "MCP" },
+            "zcode": {
+              "mcp": "MCP"
+            },
             "cedb7b99e3": "% used",
             "6d6df77f41": "No data available",
             "7f7f208060": "Monthly",

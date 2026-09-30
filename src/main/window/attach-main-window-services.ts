@@ -19,7 +19,7 @@ import {
   type PrepareCodexSessionResume
 } from '../ipc/pty'
 import { registerDaemonManagementHandlers } from '../ipc/pty-management'
-import { registerSandboxHandlers } from '../ipc/sandboxes'
+import { registerSandboxHandlers, recoverSandboxProvisioning } from '../ipc/sandboxes'
 import { registerSshHandlers } from '../ipc/ssh'
 import { registerRemoteWorkspaceHandlers } from '../ipc/remote-workspace'
 import { browserManager } from '../browser/browser-manager'
@@ -120,8 +120,11 @@ export function attachMainWindowServices(
   } else {
     void hydrateLocalPtyRegistryAtBoot(store)
   }
-  registerSandboxHandlers()
   registerSshHandlers(store, () => mainWindow, runtime)
+  registerSandboxHandlers()
+  void recoverSandboxProvisioning().catch((error) => {
+    console.error('[sandbox] Could not recover provisioning state:', error)
+  })
   registerRemoteWorkspaceHandlers(store, () => mainWindow, runtime)
   registerFileDropRelay(mainWindow)
   registerTccPromptNoticeHandlers(mainWindow)

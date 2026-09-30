@@ -41,9 +41,10 @@ describe('sandbox IPC registration', () => {
     expect(mocks.inspect).toHaveBeenCalledTimes(2)
     registerSandboxHandlers()
     expect(mocks.removeHandler).toHaveBeenCalledWith('sandboxes:inspect')
-    expect(mocks.handle.mock.calls.map(([channel]) => channel)).toEqual([
-      'sandboxes:inspect',
-      'sandboxes:inspect'
-    ])
+    expect(
+      mocks.handle.mock.calls
+        .map(([channel]) => channel)
+        .filter((channel) => channel === 'sandboxes:inspect')
+    ).toEqual(['sandboxes:inspect', 'sandboxes:inspect'])
   })
 })

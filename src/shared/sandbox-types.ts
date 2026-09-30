@@ -1,3 +1,4 @@
+import type { ManagedSandbox, SandboxProvisionRequest } from './sandbox-provisioning-types'
 export type SandboxSummary = {
   id: string
   name: string
@@ -25,4 +26,6 @@ export type SandboxInspection = {
 
 export type SandboxesApi = {
   inspect: () => Promise<SandboxInspection>
+  listManaged: () => Promise<ManagedSandbox[]>
+  provision: (request: SandboxProvisionRequest) => Promise<ManagedSandbox>
 }

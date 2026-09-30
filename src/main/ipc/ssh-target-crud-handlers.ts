@@ -39,6 +39,15 @@ function omitRendererSshTargetGeneration<T extends object>(value: T): Omit<T, 'g
   return rest
 }
 
+export function addRegisteredSshTarget(input: SshTargetCreateInput) {
+  const store = getSshTargetRegistryStore()
+  if (!store) {
+    throw new Error('ssh_handlers_not_registered')
+  }
+  const target = store.addTarget(omitRendererSshTargetGeneration(input))
+  return { target, repoReadoptions: takeRepoReadoptions() }
+}
+
 export function registerSshTargetCrudHandlers(): void {
   ipcMain.handle('ssh:listTargets', () => {
     return getSshTargetRegistryStore()!.listTargets()
@@ -49,12 +58,7 @@ export function registerSshTargetCrudHandlers(): void {
   })
 
   ipcMain.handle('ssh:addTarget', (_event, args: { target: SshTargetCreateInput }) => {
-    const target = getSshTargetRegistryStore()!.addTarget(
-      omitRendererSshTargetGeneration(args.target)
-    )
-    // Why: re-adding a removed host can re-adopt orphaned workspaces; refresh the renderer's repo list so they move back onto the live host.
-    const repoReadoptions = takeRepoReadoptions()
-    return { target, repoReadoptions }
+    return addRegisteredSshTarget(args.target)
   })
 
   ipcMain.handle(

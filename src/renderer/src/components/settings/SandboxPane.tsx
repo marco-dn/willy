@@ -6,6 +6,7 @@ import { useMountedRef } from '@/hooks/useMountedRef'
 import type { SandboxInspection } from '../../../../shared/sandbox-types'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import { SandboxProvisioning } from './SandboxProvisioning'
 import { sandboxErrorCopy, sandboxStatusCopy } from './sandbox-status-copy'
 
 type InspectionState =
@@ -73,6 +74,14 @@ export function SandboxPane(): React.JSX.Element {
       ) : (
         <SandboxInspectionResult inspection={state.inspection} />
       )}
+      <SandboxProvisioning
+        available={state.status === 'loaded' && state.inspection.status === 'ready'}
+        sandboxes={
+          state.status === 'loaded' && state.inspection.status === 'ready'
+            ? state.inspection.sandboxes
+            : []
+        }
+      />
       <Button variant="link" asChild>
         <a href="https://docs.docker.com/ai/sandboxes/install/" target="_blank" rel="noreferrer">
           {translate('settings.sandbox.installGuide', 'Docker Sandboxes installation guide')}
@@ -80,8 +89,8 @@ export function SandboxPane(): React.JSX.Element {
       </Button>
       <p className="text-xs text-muted-foreground">
         {translate(
-          'settings.sandbox.readOnly',
-          'Read-only inspection. Sandbox creation and project linking are not available yet.'
+          'settings.sandbox.provisioningLimit',
+          'Project linking and credential setup are not available yet.'
         )}
       </p>
     </div>
