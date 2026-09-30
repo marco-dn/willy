@@ -76,6 +76,65 @@ attempted against its replacement.
 6. On failure, read the phase/error, fix the prerequisite, then use Resume / configure.
    Restarting the app during provisioning must show Interrupted, never a false Ready.
 
-Project binding, sandbox-only execution, credential setup, network editing and
-lifecycle buttons are delivered in later implementation tasks. Shared files remain
+Project binding, sandbox-only execution and lifecycle buttons are delivered in later implementation tasks. Shared files remain
 accessible to other applications on the host.
+
+## Network rules (Step 3)
+
+Open **Network and credentials** on a managed sandbox. Adopt an existing sandbox
+first if it only appears in diagnostics. The editor accepts ASCII domains (or
+punycode), `*.example.com`, `**.example.com`, and an optional TCP port from 1 to 65535. URLs, arbitrary glob expressions and the universal `**` destination are
+not accepted by this editor.
+
+The first group contains removable, local TCP allow rules scoped to this sandbox.
+Global rules, organization policies, deny rules and rules that also affect UDP
+remain visible in the read-only group. Removal rechecks the rule ID, scope and
+editability; it never removes a rule by matching its destination alone.
+
+Adding a concrete destination also checks its effective policy. **Check access**
+can test an existing destination without changing rules; the default port is 443.
+For wildcards, test an actual host separately: a sample host cannot prove coverage
+of an entire wildcard. Denials display sbx's reason and denial type, plus the
+presence of organization governance. This is a policy check, not a live TCP probe.
+An allow rule cannot override an organization denial.
+
+Provisioning, policy operations and credential prompts share an operation lock.
+An unresolved temporary provisioning rule must be cleaned up before other changes.
+The backend checks sandbox identity and mount even if a stale window submits a
+request after the sandbox was replaced externally.
+
+## Optional GitHub API credentials (Step 3)
+
+**Open GitHub credential prompt** starts the host's `sbx secret set github
+--sandbox NAME` in a dedicated integrated PTY, with CLI debug output disabled.
+Enter the token only in that terminal. Willy supplies neither a token argument
+nor an existing token from another tool.
+
+This terminal uses no project session, terminal daemon, shell history, replay
+buffer or saved session log. Its input/output is sent only to the owning window;
+xterm has no scrollback or diagnostic logging and is disposed when the command
+ends. Closing the prompt, leaving settings or closing/reloading its window cancels
+the PTY. A forgotten prompt expires after 15 minutes. Cleanup waits for the PTY's
+exit before releasing the sandbox operation lock.
+
+The token is stored by sbx, not in Willy's settings or provisioning journal. The
+UI reports the outcome of the prompt; it does not persist or infer an authenticated
+account. Cancellation does not claim credentials were configured or revoke an
+existing credential. If sbx already saved a token, closing the prompt does not
+undo that action.
+
+GitHub API/service credentials and Git clone/push authentication are distinct.
+Git still uses its configured HTTPS credential helper or SSH identity/agent; this
+panel does not configure those mechanisms or verify Git access. Credentials are
+optional and do not affect whether the sandbox can be provisioned or used.
+
+### Manual check
+
+1. Open Network and credentials on two managed sandboxes and note their rules.
+2. Add `example.org:443` to the first. Its local rule should appear; the second
+   sandbox's rules must remain unchanged. Check access and read the policy result.
+3. Remove the new rule from the first sandbox. Inherited policies must stay intact.
+4. Open the GitHub prompt and cancel without entering a token. No configured-account
+   badge should appear. Network controls should become usable again after PTY exit.
+5. Close settings while the prompt is open, then reopen them. There must be no
+   restored terminal transcript or credential value.

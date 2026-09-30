@@ -3,20 +3,28 @@ import { resolveCommandOnLocalPath } from '../ipc/command-path-resolver'
 import { findSystemSsh } from '../ssh/system-ssh-binary'
 import { sshGArgsForHost } from '../ssh/ssh-g-config-resolution'
 
-export type SandboxCommand = (args: string[]) => Promise<string>
+export type SandboxCommand = (
+  args: string[],
+  options?: { expectedExitCodes: number[] }
+) => Promise<string>
+export type SandboxAccess = { run: SandboxCommand; release: () => void }
 export async function createSandboxCommand(): Promise<SandboxCommand> {
   const program = await resolveCommandOnLocalPath('sbx', { searchCurrentDirectory: false })
   if (!program) {
     throw new Error('Install sbx and start its local daemon before provisioning.')
   }
-  return async (args) => {
+  return async (args, options) => {
     const result = await runProcess({
       program,
       args,
       timeoutMs: args[0] === 'create' || args[0] === 'exec' ? 120_000 : 15_000,
       maxOutputBytes: 1024 * 1024
     })
-    if (result.timedOut || result.code !== 0 || result.outputTruncated) {
+    if (
+      result.timedOut ||
+      !(options?.expectedExitCodes ?? [0]).includes(result.code ?? -1) ||
+      result.outputTruncated
+    ) {
       throw new Error(
         `sbx ${args[0]} failed${result.timedOut ? ' (timeout)' : ''}: ${result.stderr.slice(-1500)}`
       )

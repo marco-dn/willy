@@ -2,22 +2,12 @@ import { z } from 'zod'
 import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import type { SandboxCommand } from './sandbox-command'
 
-const rulesSchema = z.object({
-  rules: z.array(
-    z.object({
-      id: z.string(),
-      scope: z.string(),
-      resource_type: z.string(),
-      decision: z.string(),
-      resources: z.array(z.string()),
-      actions: z.array(z.string()).optional().default([]),
-      editable: z.boolean().optional(),
-      layer: z.string().optional()
-    })
-  )
-})
+import { sbxPolicyRulesSchema } from './sandbox-policy-response'
+
 async function openRules(run: SandboxCommand, name: string): Promise<string[]> {
-  const { rules } = rulesSchema.parse(JSON.parse(await run(['policy', 'ls', name, '--json'])))
+  const { rules } = sbxPolicyRulesSchema.parse(
+    JSON.parse(await run(['policy', 'ls', name, '--json']))
+  )
   return rules
     .filter(
       (rule) =>
@@ -71,7 +61,10 @@ export async function openProvisioningNetwork(
       .object({ allowed: z.boolean() })
       .parse(
         JSON.parse(
-          await run(['policy', 'check', 'network', '--sandbox', record.name, '--json', destination])
+          await run(
+            ['policy', 'check', 'network', '--sandbox', record.name, '--json', destination],
+            { expectedExitCodes: [0, 1] }
+          )
         )
       )
     if (!check.allowed) {

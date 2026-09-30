@@ -173,6 +173,35 @@ describe('sandbox provisioning', () => {
     expect(f.dependencies.registerTarget).toHaveBeenLastCalledWith('demo.sbx', 'ssh-existing')
     expect(f.store.list()[0].tools).toEqual([])
   })
+  it('serializes policy and credential leases with provisioning and verifies sandbox identity', async () => {
+    const f = fixture()
+    await f.manager.provision(f.request)
+    await f.done()
+    const access = await f.manager.acquireSandbox({ name: 'demo', id: 'sandbox-id' })
+    await expect(f.manager.provision({ ...f.request, mode: 'resume' })).rejects.toThrow(
+      'Another sandbox operation'
+    )
+    await expect(f.manager.acquireSandbox({ name: 'demo', id: 'sandbox-id' })).rejects.toThrow(
+      'Another sandbox operation'
+    )
+    access.release()
+    access.release()
+    f.setInventory([])
+    await expect(f.manager.acquireSandbox({ name: 'demo', id: 'sandbox-id' })).rejects.toThrow(
+      'identity or shared folder changed'
+    )
+  })
+  it('requires recovery of temporary rules before editing policies', async () => {
+    const f = fixture()
+    await f.manager.provision(f.request)
+    await f.done()
+    const record = f.store.list()[0]
+    record.network = { beforeIds: [], createdIds: ['temporary'], pending: false }
+    f.store.save(record)
+    await expect(f.manager.acquireSandbox({ name: 'demo', id: 'sandbox-id' })).rejects.toThrow(
+      'temporary network cleanup'
+    )
+  })
   it('does not recreate a removed or replaced managed sandbox', async () => {
     const f = fixture()
     await f.manager.provision(f.request)

@@ -1,3 +1,4 @@
+import { sandboxTargetSchema } from './sandbox-policy-response'
 import { randomUUID } from 'node:crypto'
 import { mkdir, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -5,7 +6,12 @@ import { isAbsolute, join } from 'node:path'
 import type { ManagedSandbox, SandboxProvisionStage } from '../../shared/sandbox-provisioning-types'
 import type { SandboxProvisioningStore } from './sandbox-provisioning-store'
 import { provisionRequestSchema } from './sandbox-provisioning-store'
-import { createSandboxCommand, runSandboxSsh, type SandboxCommand } from './sandbox-command'
+import {
+  createSandboxCommand,
+  runSandboxSsh,
+  type SandboxCommand,
+  type SandboxAccess
+} from './sandbox-command'
 import { parseSbxInventory } from './sbx-response'
 import { cleanupProvisioningNetwork, openProvisioningNetwork } from './sandbox-network'
 import {
@@ -38,6 +44,43 @@ export class SandboxProvisioningManager {
       throw this.persistenceError
     }
     return this.store.list()
+  }
+  async acquireSandbox(input: unknown): Promise<SandboxAccess> {
+    await this.recovery
+    if (this.persistenceError) {
+      throw this.persistenceError
+    }
+    if (this.busy) {
+      throw new Error('Another sandbox operation is running. Wait for it to finish.')
+    }
+    this.busy = true
+    try {
+      const target = sandboxTargetSchema.parse(input)
+      const record = this.store
+        .list()
+        .find((record) => record.name === target.name && record.sandboxId === target.id)
+      if (!record) {
+        throw new Error('This sandbox is not managed or its identity changed. Refresh settings.')
+      }
+      if (record.network) {
+        throw new Error('Resume provisioning to finish temporary network cleanup first.')
+      }
+      const run = await this.dependencies.command()
+      await this.verifyIdentity(record, run)
+      let released = false
+      return {
+        run,
+        release: () => {
+          if (!released) {
+            released = true
+            this.busy = false
+          }
+        }
+      }
+    } catch (error) {
+      this.busy = false
+      throw error
+    }
   }
   async provision(input: unknown): Promise<ManagedSandbox> {
     await this.recovery

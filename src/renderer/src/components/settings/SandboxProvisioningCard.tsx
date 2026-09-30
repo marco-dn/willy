@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { SandboxAccessPanel } from './SandboxAccessPanel'
 import { translate } from '@/i18n/i18n'
 import type { ManagedSandbox } from '../../../../shared/sandbox-provisioning-types'
 import { Button } from '../ui/button'
@@ -13,6 +15,7 @@ export function SandboxProvisioningCard({
   disabled: boolean
   onConfigure: () => void
 }): React.JSX.Element {
+  const [accessOpen, setAccessOpen] = useState(false)
   const status =
     record.status === 'ready'
       ? translate('settings.sandbox.ready', 'Ready')
@@ -54,6 +57,24 @@ export function SandboxProvisioningCard({
       <Button variant="outline" size="sm" disabled={disabled} onClick={onConfigure}>
         {translate('settings.sandbox.resume', 'Resume / configure')}
       </Button>
+      {record.sandboxId ? (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled && !accessOpen}
+            onClick={() => setAccessOpen((value) => !value)}
+          >
+            {translate('settings.sandbox.networkCredentials', 'Network and credentials')}
+          </Button>
+          {accessOpen ? (
+            <SandboxAccessPanel
+              target={{ name: record.name, id: record.sandboxId }}
+              disabled={disabled}
+            />
+          ) : null}
+        </>
+      ) : null}
     </div>
   )
 }

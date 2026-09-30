@@ -13,6 +13,7 @@ export const getSandboxPaneSearchEntries = createLocalizedCatalog(() => [
       'sbx',
       'Docker',
       'sandbox',
+      ...translateSearchKeyword('settings.sandbox.networkCredentials', 'Network and credentials'),
       ...translateSearchKeyword('settings.sandbox.create', 'Create sandbox'),
       ...translateSearchKeyword('settings.sandbox.provisioning', 'Provisioning'),
       ...translateSearchKeyword('settings.sandbox.diagnostics', 'Diagnostics'),

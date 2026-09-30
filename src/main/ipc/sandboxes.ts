@@ -1,3 +1,5 @@
+import { registerSandboxCredentialHandlers } from './sandbox-credentials'
+import { SandboxPolicyService } from '../sandbox/sandbox-policy-service'
 import { join } from 'node:path'
 import { SandboxProvisioningStore } from '../sandbox/sandbox-provisioning-store'
 import {
@@ -30,6 +32,11 @@ export async function recoverSandboxProvisioning(): Promise<void> {
 }
 
 export function registerSandboxHandlers(): void {
+  const acquire = (target: unknown) => provisioningManager().acquireSandbox(target)
+  const policy = new SandboxPolicyService(acquire)
+  ipcMain.removeHandler('sandboxes:policy')
+  ipcMain.handle('sandboxes:policy', (_event, request: unknown) => policy.execute(request))
+  registerSandboxCredentialHandlers(acquire)
   ipcMain.removeHandler('sandboxes:listManaged')
   ipcMain.removeHandler('sandboxes:provision')
   ipcMain.handle('sandboxes:listManaged', () => provisioningManager().list())
