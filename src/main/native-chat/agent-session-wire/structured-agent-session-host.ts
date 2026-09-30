@@ -1,3 +1,5 @@
+import { withSandboxExecution } from '../../sandbox/sandbox-execution-boundary'
+import { normalizeExecutionHostId } from '../../../shared/execution-host'
 import type { AgentSessionRewindParams } from '../../../shared/agent-session-rewind'
 import { rewindStructuredAgentSession } from './structured-agent-session-rewind'
 import { StructuredConversationCommandController } from './structured-conversation-command-controller'
@@ -238,7 +240,13 @@ export class StructuredAgentSessionHost {
     caller: StructuredAgentSessionCaller,
     params: AgentSessionAttachParams
   ): Promise<SessionWire.AgentSessionMutationResult<SessionWire.AgentSessionAttachResult>> {
-    return attachStructuredAgentSession(this.attachContext(), caller.callerKey, params)
+    const hostId = normalizeExecutionHostId(params.location.executionHostId)
+    if (!hostId) {
+      throw new Error('Invalid agent execution host.')
+    }
+    return withSandboxExecution({ worktreeId: params.location.workspaceId, hostId }, () =>
+      attachStructuredAgentSession(this.attachContext(), caller.callerKey, params)
+    )
   }
 
   flushStreamedEvents = (sessionId: string): Promise<void> =>

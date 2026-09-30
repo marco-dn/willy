@@ -1,3 +1,4 @@
+import type { SandboxProjectBinding } from '../../../shared/sandbox-project-types'
 import type {
   Project,
   ProjectHostSetup,
@@ -102,6 +103,29 @@ export class ProjectHostPersistenceOperations {
     project.updatedAt = Date.now()
     this.scheduleSave()
     return { ...project }
+  }
+
+  setProjectSandboxBinding(id: string, binding: SandboxProjectBinding | null): void {
+    const project = this.state.projects.find((entry) => entry.id === id)
+    if (!project) {
+      throw new Error(`Project not found: ${id}`)
+    }
+    if (binding) {
+      const setup = this.state.projectHostSetups.find((entry) => entry.id === binding.setupId)
+      if (
+        !setup ||
+        setup.projectId !== id ||
+        setup.repoId !== binding.repoId ||
+        setup.hostId !== `ssh:${binding.sshTargetId}`
+      ) {
+        throw new Error('Sandbox setup does not belong to this project.')
+      }
+      project.sandboxBinding = binding
+    } else {
+      project.sandboxBinding = null
+    }
+    project.updatedAt = Date.now()
+    this.scheduleSave()
   }
 
   getProjectHostSetups(): ProjectHostSetup[] {

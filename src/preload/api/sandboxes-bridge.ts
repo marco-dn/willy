@@ -3,6 +3,8 @@ import { ipcRenderer } from 'electron'
 import type { SandboxesApi } from '../../shared/sandbox-types'
 
 export const sandboxesApi = {
+  linkProject: (request) => ipcRenderer.invoke('sandboxes:linkProject', request),
+  unlinkProject: (projectId) => ipcRenderer.invoke('sandboxes:unlinkProject', projectId),
   policy: (request) => ipcRenderer.invoke('sandboxes:policy', request),
   startCredentials: (request) => ipcRenderer.invoke('sandboxes:credential-start', request),
   writeCredentials: (request) => ipcRenderer.invoke('sandboxes:credential-input', request),

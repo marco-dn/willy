@@ -77,6 +77,7 @@ export function sanitizeRepoUpdatesForPersistence<
       | 'gitRemoteIdentity'
       | 'worktreeBasePath'
       | 'projectHostSetupMethod'
+      | 'explicitProjectId'
       | 'forkSyncMode'
       | 'customWorktreeVisibilitySources'
       | 'worktreeVisibilitySourcePreferences'
@@ -124,6 +125,13 @@ export function sanitizeRepoUpdatesForPersistence<
       sanitized.worktreeBasePath = sanitized.worktreeBasePath.trim() || undefined
     } else {
       delete sanitized.worktreeBasePath
+    }
+  }
+  if ('explicitProjectId' in sanitized) {
+    if (typeof sanitized.explicitProjectId !== 'string' || !sanitized.explicitProjectId.trim()) {
+      delete sanitized.explicitProjectId
+    } else {
+      sanitized.explicitProjectId = sanitized.explicitProjectId.trim()
     }
   }
   if ('projectHostSetupMethod' in sanitized) {

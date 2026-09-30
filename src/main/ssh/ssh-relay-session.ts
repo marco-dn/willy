@@ -1,3 +1,4 @@
+import { sandboxSshRequestAdmission } from '../sandbox/sandbox-ssh-admission'
 /* oxlint-disable max-lines */
 // Why: single authority for all relay lifecycle state per SSH target (previously scattered across module Maps/Sets with duplicated paths).
 
@@ -584,7 +585,7 @@ export class SshRelaySession {
         throw new Error('Session disposed during establish')
       }
 
-      const mux = new SshChannelMultiplexer(transport)
+      const mux = new SshChannelMultiplexer(transport, sandboxSshRequestAdmission(this.targetId))
       this.openCodeRuntimePreparation = prepareOpenCodeRuntime
         ? { run: prepareOpenCodeRuntime, controller: new AbortController() }
         : null
@@ -743,7 +744,7 @@ export class SshRelaySession {
         return
       }
 
-      const mux = new SshChannelMultiplexer(transport)
+      const mux = new SshChannelMultiplexer(transport, sandboxSshRequestAdmission(this.targetId))
       this.openCodeRuntimePreparation = prepareOpenCodeRuntime
         ? { run: prepareOpenCodeRuntime, controller: new AbortController() }
         : null

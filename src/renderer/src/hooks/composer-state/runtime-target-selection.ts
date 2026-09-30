@@ -172,12 +172,13 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
   const projectHostSetupOptions = useMemo(
     () =>
       buildProjectHostSetupOptions({
+        projects,
         projectId: selectedRepoProjectId,
         projectHostSetups,
         eligibleRepos,
         hosts: hostOptions
       }),
-    [eligibleRepos, hostOptions, projectHostSetups, selectedRepoProjectId]
+    [eligibleRepos, hostOptions, projectHostSetups, selectedRepoProjectId, projects]
   )
 
   const projectOptions = useMemo(

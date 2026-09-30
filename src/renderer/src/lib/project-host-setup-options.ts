@@ -1,3 +1,4 @@
+import { getPendingSetupByHost } from './pending-project-host-setups'
 import {
   getExecutionHostLabel,
   isRuntimeOwnedSshTargetId,
@@ -12,7 +13,7 @@ import {
   PROJECT_HOST_SETUP_RUNTIME_CAPABILITY,
   WORKSPACE_RUN_CONTEXT_RUNTIME_CAPABILITY
 } from '../../../shared/protocol-version'
-import type { ProjectHostSetup } from '../../../shared/project-types'
+import type { Project, ProjectHostSetup } from '../../../shared/project-types'
 import type { Repo } from '../../../shared/repo-types'
 
 export type ProjectHostSetupOption =
@@ -62,6 +63,7 @@ type BuildNeedsSetupOptionsInput = {
 }
 
 type BuildProjectHostSetupOptionsInput = {
+  projects?: readonly Project[]
   projectId: string | null
   projectHostSetups: readonly ProjectHostSetup[]
   eligibleRepos: readonly Repo[]
@@ -69,6 +71,7 @@ type BuildProjectHostSetupOptionsInput = {
 }
 
 export function buildProjectHostSetupOptions({
+  projects,
   projectId,
   projectHostSetups,
   eligibleRepos,
@@ -76,6 +79,12 @@ export function buildProjectHostSetupOptions({
 }: BuildProjectHostSetupOptionsInput): ProjectHostSetupOption[] {
   if (!projectId) {
     return []
+  }
+  const binding = projects?.find((project) => project.id === projectId)?.sandboxBinding
+  if (binding) {
+    projectHostSetups = projectHostSetups.filter((setup) => setup.id === binding.setupId)
+    eligibleRepos = eligibleRepos.filter((repo) => repo.id === binding.repoId)
+    hosts = hosts.filter((host) => host.id === `ssh:${binding.sshTargetId}`)
   }
   const readyOptions = buildReadySetupOptions({
     projectId,
@@ -94,22 +103,6 @@ export function buildProjectHostSetupOptions({
       pendingSetupByHost
     })
   ].sort((a, b) => compareProjectHostSetupOptions(a, b))
-}
-
-function getPendingSetupByHost(
-  projectId: string,
-  projectHostSetups: readonly ProjectHostSetup[]
-): Map<ExecutionHostId, ProjectHostSetup> {
-  const setups = new Map<ExecutionHostId, ProjectHostSetup>()
-  for (const setup of projectHostSetups) {
-    if (setup.projectId !== projectId || setup.setupState === 'ready') {
-      continue
-    }
-    if (!setups.has(setup.hostId)) {
-      setups.set(setup.hostId, setup)
-    }
-  }
-  return setups
 }
 
 function buildReadySetupOptions({

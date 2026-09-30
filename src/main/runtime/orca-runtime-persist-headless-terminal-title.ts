@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { assertSandboxExecution } from '../sandbox/sandbox-execution-boundary'
 import { OrcaRuntimeWithMoveHeadlessMobileSessionTab } from './orca-runtime-move-headless-mobile-session-tab'
 import type {
   RuntimeMarkdownReadTabResult,
@@ -187,6 +188,12 @@ export class OrcaRuntimeWithPersistHeadlessTerminalTitle extends OrcaRuntimeWith
       repo && executionHostId === LOCAL_EXECUTION_HOST_ID
         ? getLocalProjectWorktreeGitOptions(store, repo)
         : {}
+    assertSandboxExecution({
+      repoId: worktree.repoId,
+      worktreeId: worktree.id,
+      cwd: worktree.path,
+      hostId: executionHostId
+    })
     return { worktree, repo, executionHostId, localGitOptions }
   }
 

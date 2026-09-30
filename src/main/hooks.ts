@@ -1,3 +1,4 @@
+import { withSandboxExecution } from './sandbox/sandbox-execution-boundary'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseOrcaYaml } from '../shared/orca-yaml'
@@ -200,7 +201,7 @@ export function getSetupCommandSource(
 /**
  * Run a named hook script in the given working directory.
  */
-export function runHook(
+function runHookAdmitted(
   hookName: 'setup' | 'archive',
   cwd: string,
   repo: Repo,
@@ -349,4 +350,12 @@ export function runHook(
       }, timeoutMs)
     }
   })
+}
+
+export function runHook(
+  ...args: Parameters<typeof runHookAdmitted>
+): ReturnType<typeof runHookAdmitted> {
+  return withSandboxExecution({ repoId: args[2].id, cwd: args[1], hostId: 'local' }, () =>
+    runHookAdmitted(...args)
+  )
 }

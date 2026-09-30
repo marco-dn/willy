@@ -3,6 +3,7 @@ import { OrcaRuntimeWithGetWorktreeTerminalProvisioningHost } from './orca-runti
 import type { RuntimeManagedWorktreeCreateArgs } from './runtime-managed-worktree-create-types'
 import type { CreateWorktreeResult } from '../../shared/worktree/create-types'
 import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
+import { withSandboxRepoExecution } from '../sandbox/sandbox-execution-boundary'
 import { isFolderRepo } from '../../shared/repo-kind'
 import { resolveWorktreeCreateRoute } from '../worktree-create-execution-host-route'
 import { ExecutionHostNotDispatchableError } from '../providers/execution-host-provider-dispatch'
@@ -17,12 +18,13 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
   async createManagedWorktree(
     args: RuntimeManagedWorktreeCreateArgs
   ): Promise<CreateWorktreeResult> {
-    // Why a holder fired in `finally`: consuming a prepared checkout empties a pool slot, so a
-    // create that fails anywhere after that — include copy, push target, terminal startup — must
-    // still arm the replacement. On success it fires last, once the startup terminals are up.
+    // Rearm the consumed pool slot after terminal startup, including failed creates.
     const rearm: PreparationRearmHolder = { fire: () => {} }
     try {
-      return await this.performManagedWorktreeCreate(args, rearm)
+      const repo = await this.resolveRepoSelector(args.repoSelector)
+      return await withSandboxRepoExecution(repo, () =>
+        this.performManagedWorktreeCreate(args, rearm)
+      )
     } finally {
       rearm.fire()
     }

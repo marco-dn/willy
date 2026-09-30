@@ -62,7 +62,20 @@ export class RepoLifecycleOperations {
     return getRepoOrderOperations(this).reorderReposForHost(orderedIds, hostId)
   }
 
+  private assertSandboxUnlinked(repoId: string): void {
+    if (
+      this[repoLifecycleOperationsContext].runtime.state.projects.some(
+        (project) =>
+          project.sandboxBinding &&
+          (project.sourceRepoIds.includes(repoId) || project.sandboxBinding.repoId === repoId)
+      )
+    ) {
+      throw new Error('Unlink the project sandbox before removing one of its environments.')
+    }
+  }
+
   removeProject(id: string): void {
+    this.assertSandboxUnlinked(id)
     const repoRemoved = this[repoLifecycleOperationsContext].runtime.state.repos.some(
       (repo) => repo.id === id
     )
@@ -90,6 +103,7 @@ export class RepoLifecycleOperations {
   }
 
   removeProjectForHost(id: string, hostId: ExecutionHostId): void {
+    this.assertSandboxUnlinked(id)
     const repoRemoved = this[repoLifecycleOperationsContext].runtime.state.repos.some(
       (repo) => repo.id === id && getRepoExecutionHostId(repo) === hostId
     )
@@ -185,6 +199,7 @@ export class RepoLifecycleOperations {
         | 'projectGroupId'
         | 'projectGroupOrder'
         | 'projectHostSetupMethod'
+        | 'explicitProjectId'
       >
     > & {
       externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null

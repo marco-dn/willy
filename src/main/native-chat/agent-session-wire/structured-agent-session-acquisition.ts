@@ -1,3 +1,5 @@
+import { withSandboxExecution } from '../../sandbox/sandbox-execution-boundary'
+import { normalizeExecutionHostId } from '../../../shared/execution-host'
 import { isDeepStrictEqual } from 'node:util'
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
 import {
@@ -13,7 +15,7 @@ import { withAgentSessionCreatePhase } from '../../observability/agent-session-i
 
 /** A reservation with no process behind it is only a promise to spawn; the
  * adapter makes it real and the store then grants the writer. */
-export async function acquireOwner(
+async function acquireOwnerAdmitted(
   input: AttachFlowInput,
   record: AgentSessionRecord
 ): Promise<{
@@ -91,4 +93,17 @@ export async function acquireOwner(
     }
     return rethrowAfterAgentSessionAcquisitionCleanup(input.adapter, record.sessionId, error)
   }
+}
+
+export function acquireOwner(
+  input: AttachFlowInput,
+  record: AgentSessionRecord
+): ReturnType<typeof acquireOwnerAdmitted> {
+  const hostId = normalizeExecutionHostId(record.location.executionHostId)
+  if (!hostId) {
+    throw new Error('Invalid agent execution host.')
+  }
+  return withSandboxExecution({ worktreeId: record.location.workspaceId, hostId }, () =>
+    acquireOwnerAdmitted(input, record)
+  )
 }

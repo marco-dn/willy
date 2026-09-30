@@ -1,3 +1,4 @@
+import { associateRepoWithExistingProject } from '../project-repo-association'
 import type {
   Project,
   ProjectHostSetup,
@@ -183,18 +184,9 @@ export class RuntimeProjectHostSetupController {
     let repo = initialRepo
     let setup = getProjectHostSetupForRepo(this.listSetups(), repo)
     if (setup.projectId !== args.projectId) {
-      const existingProject = this.listProjects().find((project) => project.id === args.projectId)
-      const identity = existingProject?.providerIdentity ?? args.projectProviderIdentity
-      if (!identity || getProjectIdForProviderIdentity(identity) !== args.projectId) {
-        throw new Error('Imported folder does not match the selected project identity.')
-      }
-      const updated = store.updateRepo(repo.id, {
-        upstream: {
-          owner: identity.owner,
-          repo: identity.repo,
-          ...(identity.host ? { host: identity.host } : {})
-        }
-      })
+      const updated =
+        associateRepoWithExistingProject(store, repo, args.projectId) ??
+        store.updateRepo(repo.id, projectIdentityUpdates(args))
       if (!updated) {
         throw new Error(`Project setup repo disappeared before it could be linked: ${repo.id}`)
       }
@@ -215,5 +207,19 @@ export class RuntimeProjectHostSetupController {
       throw new Error(`Project setup was created without a project record: ${setup.projectId}`)
     }
     return { project, setup, repo }
+  }
+}
+
+function projectIdentityUpdates(args: ProjectHostSetupExistingFolderArgs): Partial<Repo> {
+  const identity = args.projectProviderIdentity
+  if (!identity || getProjectIdForProviderIdentity(identity) !== args.projectId) {
+    throw new Error('Imported folder does not match the selected project identity.')
+  }
+  return {
+    upstream: {
+      owner: identity.owner,
+      repo: identity.repo,
+      ...(identity.host ? { host: identity.host } : {})
+    }
   }
 }

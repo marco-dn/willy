@@ -138,3 +138,63 @@ optional and do not affect whether the sandbox can be provisioned or used.
    badge should appear. Network controls should become usable again after PTY exit.
 5. Close settings while the prompt is open, then reopen them. There must be no
    restored terminal transcript or credential value.
+
+## Project associations (Step 4)
+
+Expand **Projects** on a ready sandbox. Select an existing Willy project and a
+relative path inside its shared folder (`.` selects the mount itself). This is an
+explicit association: GitHub, GitLab, repositories without remotes and folder
+projects use the same flow. Existing-folder linking does not copy files. Git
+projects can instead be cloned via SSH into a new destination whose parent already
+exists. URLs must not embed HTTP credentials; configure Git authentication separately.
+
+For Git projects, enter an author name and email, or leave them blank to reuse the
+identity available inside the sandbox. Verification saves that identity with
+`git config --local`; it does not change global Git identity. Git metadata outside
+the mount and symlinks escaping it are rejected. New worktrees use a per-project
+folder under `<mount>/.willy-worktrees/`.
+
+Linking refuses while project operations or sessions on other hosts are active.
+Unverifiable SSH sessions also block the change: disconnection or an expired lease
+is not evidence that a process exited. Reconnect and close the sessions first.
+A project can have one active sandbox; several projects can share a sandbox.
+
+The backend checks terminal, agent, Git, hook and workspace creation entry points,
+including runtime/CLI requests and automation launches. The composer offers the
+sandbox environment for a linked project. A stopped/replaced sandbox, changed
+mount or missing SSH connection blocks execution; Willy does not fall back to local
+execution. Existing local workspaces and history remain registered, but their
+execution is refused while linked. Shared files remain available to other host apps.
+
+Closing settings does not cancel a link request already running in the main
+process. Reopen Projects to see the saved association. A failed preflight does not
+activate the sandbox constraint; a clone or Git configuration already performed
+may remain in the shared folder and can be selected as an existing folder on retry.
+
+**Unlink project** requires its sandbox sessions to be closed. It clears only that
+project's constraint, preserving the SSH setup, files and other project links.
+Ordinary environment selection then returns. Unlink before removing an associated
+project environment. Sandbox start/stop/removal controls are reserved for Step 5.
+
+### Manual check
+
+1. Prepare two existing projects with separate folders under the mount (or clone
+   Git projects through this form). Keep a local terminal open in the first project.
+2. Link the first project. Expect a request to close its terminal; close it and retry.
+3. Link the second project to the same sandbox and a different relative path.
+4. Create a workspace for each. The environment picker should offer the sandbox;
+   terminals and agents should execute over SSH. For Git workspaces, check that
+   `pwd` is under the mount's `.willy-worktrees` directory.
+5. Try reopening an old local terminal for either project: execution must be refused.
+6. Disconnect sandbox SSH and attempt another start: expect an unavailable error,
+   never a local terminal. Reconnect to continue.
+7. Try unlinking the first project with its sandbox terminal open, then close that
+   terminal and retry. Ordinary environment choices should return only for this
+   project; the second must stay bound to the sandbox.
+
+The Step 4 execution guard reads the sbx-provided `SANDBOX_ID` through the active
+SSH relay and compares it with the UUID registered for the project. It verifies
+again on a new SSH channel, so reconnecting or restarting the same sandbox does
+not require unlinking its projects. A different sandbox UUID remains blocked.
+The probe does not start a stopped sandbox. Older guests without `SANDBOX_ID`
+retain the stricter boot-ID check and require relinking after a guest restart.

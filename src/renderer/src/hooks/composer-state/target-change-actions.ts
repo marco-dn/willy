@@ -239,6 +239,7 @@ export function useTargetChangeActions(input: TargetChangeActionsInput) {
         option?.kind === 'ready'
           ? option
           : buildProjectHostSetupOptions({
+              projects: useAppStore.getState().projects,
               projectId: selectedRepoProjectId,
               projectHostSetups: useAppStore.getState().projectHostSetups,
               eligibleRepos: getComposerEligibleRepos(useAppStore.getState().repos),

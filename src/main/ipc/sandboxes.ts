@@ -1,3 +1,9 @@
+import { addRemoteRepoFromPath } from './repos/remote-repo-registration'
+import type { Store } from '../persistence'
+import type { BrowserWindow } from 'electron'
+import { SandboxProjectService } from '../sandbox/sandbox-project-service'
+import { configureSandboxExecutionStore } from '../sandbox/sandbox-execution-boundary'
+import { notifyReposChanged } from './repos/repos-changed-notification'
 import { registerSandboxCredentialHandlers } from './sandbox-credentials'
 import { SandboxPolicyService } from '../sandbox/sandbox-policy-service'
 import { join } from 'node:path'
@@ -31,8 +37,25 @@ export async function recoverSandboxProvisioning(): Promise<void> {
   await provisioningManager().list()
 }
 
-export function registerSandboxHandlers(): void {
+export function registerSandboxHandlers(store?: Store, mainWindow?: BrowserWindow): void {
   const acquire = (target: unknown) => provisioningManager().acquireSandbox(target)
+  if (store && mainWindow) {
+    const projects = new SandboxProjectService({
+      store,
+      policy: configureSandboxExecutionStore(store),
+      acquire,
+      register: (args) => addRemoteRepoFromPath(store, args),
+      list: () => provisioningManager().list(),
+      changed: () => notifyReposChanged(mainWindow)
+    })
+    for (const channel of ['sandboxes:linkProject', 'sandboxes:unlinkProject']) {
+      ipcMain.removeHandler(channel)
+    }
+    ipcMain.handle('sandboxes:linkProject', (_event, request: unknown) => projects.link(request))
+    ipcMain.handle('sandboxes:unlinkProject', (_event, projectId: unknown) =>
+      projects.unlink(projectId)
+    )
+  }
   const policy = new SandboxPolicyService(acquire)
   ipcMain.removeHandler('sandboxes:policy')
   ipcMain.handle('sandboxes:policy', (_event, request: unknown) => policy.execute(request))

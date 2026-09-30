@@ -111,6 +111,8 @@ export type Repo = {
   sourceControlAi?: RepoSourceControlAiOverrides
   /** Transitional source for ProjectHostSetup.setupMethod while Repo remains compatibility storage. */
   projectHostSetupMethod?: RepoProjectHostSetupMethod
+  /** Explicit cross-host association, independent of Git provider metadata. */
+  explicitProjectId?: string
 }
 
 /**

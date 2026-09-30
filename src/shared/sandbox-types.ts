@@ -1,3 +1,4 @@
+import type { SandboxProjectLinkRequest } from './sandbox-project-types'
 import type {
   SandboxTarget,
   SandboxPolicySnapshot,
@@ -31,6 +32,8 @@ export type SandboxInspection = {
 )
 
 export type SandboxesApi = {
+  linkProject: (request: SandboxProjectLinkRequest) => Promise<void>
+  unlinkProject: (projectId: string) => Promise<void>
   policy: (request: {
     target: SandboxTarget
     action: 'list' | 'add' | 'remove' | 'check'

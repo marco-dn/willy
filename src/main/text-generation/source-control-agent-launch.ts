@@ -1,3 +1,4 @@
+import { acquireSandboxLocalExecution } from '../sandbox/sandbox-execution-boundary'
 import { spawnProcess } from '../../shared/child-process/run-process'
 import { withCliRuntimeOnPath } from '../../shared/node-cli-command-resolution'
 import { resolveCliCommand } from '../codex-cli/command'
@@ -36,7 +37,7 @@ function buildWslLauncherEnv(explicitEnv: NodeJS.ProcessEnv | undefined): NodeJS
   return env
 }
 
-export const spawnSourceControlAgent: SpawnSourceControlAgent = (input) => {
+const spawnSourceControlAgentAdmitted: SpawnSourceControlAgent = (input) => {
   const spawnEnv = input.env ?? process.env
   if (process.platform === 'win32' && input.wslDistro) {
     // Apply assignments in the guest after its login shell, not to the Windows launcher.
@@ -73,4 +74,21 @@ export const spawnSourceControlAgent: SpawnSourceControlAgent = (input) => {
     child.stdin?.end()
   }
   return child
+}
+
+export const spawnSourceControlAgent: SpawnSourceControlAgent = (input) => {
+  const release = acquireSandboxLocalExecution(input.cwd ?? process.cwd())
+  try {
+    const child = spawnSourceControlAgentAdmitted(input)
+    child.once('close', release)
+    child.once('error', () => {
+      if (!child.pid) {
+        release()
+      }
+    })
+    return child
+  } catch (error) {
+    release()
+    throw error
+  }
 }

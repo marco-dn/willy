@@ -1,3 +1,4 @@
+import { SandboxProjectsPanel } from './SandboxProjectsPanel'
 import { useState } from 'react'
 import { SandboxAccessPanel } from './SandboxAccessPanel'
 import { translate } from '@/i18n/i18n'
@@ -57,6 +58,14 @@ export function SandboxProvisioningCard({
       <Button variant="outline" size="sm" disabled={disabled} onClick={onConfigure}>
         {translate('settings.sandbox.resume', 'Resume / configure')}
       </Button>
+      {record.status === 'ready' && record.sandboxId ? (
+        <details>
+          <summary className="cursor-pointer text-sm">
+            {translate('settings.sandbox.projects', 'Projects')}
+          </summary>
+          <SandboxProjectsPanel record={record} disabled={disabled} />
+        </details>
+      ) : null}
       {record.sandboxId ? (
         <>
           <Button

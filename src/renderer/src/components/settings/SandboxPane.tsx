@@ -88,7 +88,10 @@ export function SandboxPane(): React.JSX.Element {
         </a>
       </Button>
       <p className="text-xs text-muted-foreground">
-        {translate('settings.sandbox.provisioningLimit', 'Project linking is not available yet.')}
+        {translate(
+          'settings.sandbox.provisioningLimit',
+          'Sandbox start, stop and removal controls are not available yet.'
+        )}
       </p>
     </div>
   )

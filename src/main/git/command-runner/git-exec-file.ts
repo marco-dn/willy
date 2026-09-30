@@ -1,3 +1,4 @@
+import { assertSandboxExecution } from '../../sandbox/sandbox-execution-boundary'
 import { execFileSync, type SpawnOptions } from 'node:child_process'
 import { withGitSpan } from '../../observability/instrumentation'
 import { recordSubprocessSpawn } from '../../diagnostics/main-thread-churn-probe'
@@ -301,6 +302,7 @@ export function gitExecFileSync(
     timeout?: number
   }
 ): string {
+  assertSandboxExecution({ cwd: options.cwd, hostId: 'local' })
   const resolved = resolveCommand('git', args, options.cwd)
   const spawnStartedAt = performance.now()
   try {

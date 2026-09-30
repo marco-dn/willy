@@ -1,3 +1,4 @@
+import type { SandboxProjectBinding } from '../../../shared/sandbox-project-types'
 import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import type {
@@ -69,6 +70,10 @@ export class ProjectCollectionOperations {
 
   updateProject(id: string, updates: ProjectUpdateArgs['updates']): Project | null {
     return getProjectHostOperations(this).updateProject(id, updates)
+  }
+
+  setProjectSandboxBinding(id: string, binding: SandboxProjectBinding | null): void {
+    getProjectHostOperations(this).setProjectSandboxBinding(id, binding)
   }
 
   getProjectHostSetups(): ProjectHostSetup[] {

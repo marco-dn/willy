@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { configureSandboxExecutionStore } from '../sandbox/sandbox-execution-boundary'
 import { OrcaRuntimeWithLinearCommands } from './orca-runtime-linear-commands'
 import type { RuntimeStore } from './runtime-store-contract'
 import type { StatsCollector } from '../stats/collector'
@@ -119,6 +120,9 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
   ) {
     super()
     this.store = store
+    if (store) {
+      configureSandboxExecutionStore(store)
+    }
     this.machineName.start()
     this.prepareClaudeAuth = deps?.prepareClaudeAuth
     store?.onSettingsChanged?.((updates) => {
