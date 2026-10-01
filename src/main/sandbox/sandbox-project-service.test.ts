@@ -1,3 +1,4 @@
+import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Project } from '../../shared/project-types'
 import type { Repo } from '../../shared/repo-types'
@@ -22,7 +23,7 @@ vi.mock('./sandbox-command', () => ({
   )
 }))
 
-function fixture() {
+function fixture(status: ManagedSandbox['status'] = 'ready') {
   const repos: Repo[] = [
     {
       id: 'local',
@@ -103,7 +104,7 @@ function fixture() {
         name: 'test',
         sandboxId: 'id',
         sshTargetId: 'ssh',
-        status: 'ready',
+        status,
         mountPath: '/shared',
         tools: [],
         operationId: 'op',
@@ -125,6 +126,13 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 describe('sandbox project service', () => {
+  it('rejects linking an imported environment even when an SSH target is present', async () => {
+    const { service, acquire, register, store } = fixture('imported')
+    await expect(service.link(request)).rejects.toThrow('Finish sandbox provisioning')
+    expect(acquire).not.toHaveBeenCalled()
+    expect(register).not.toHaveBeenCalled()
+    expect(store.getProjects()[0].sandboxBinding).toBeUndefined()
+  })
   it('links a folder project without inventing GitHub identity and preserves the local repo', async () => {
     const { service, store, release } = fixture()
     await service.link(request)

@@ -19,22 +19,27 @@ completed preparation shows Configured and no active phase. Start is disabled wh
 already running unless an incomplete operation needs retry; Stop is disabled when
 already stopped.
 
-External sandboxes appear in the same catalog. For now, their details retain the
-existing adoption flow, which installs the required base and selected tools. Import
-without installation will be introduced separately; opening a detail never adopts
-or installs anything.
+External sandboxes appear in the same catalog. Expand one and choose **Manage in
+Willy** to import it without starting it, installing tools, configuring SSH or changing
+network rules. Select the shared folder explicitly if multiple mounts are reported.
+Only shell sandboxes with an existing shared directory are supported. Willy rechecks
+UUID, name and mount before saving; repeat imports of the same UUID and mount reuse
+the existing record. Conflicting names or identities are rejected without overwriting.
 
-## Create or adopt
+Imported sandboxes show **Verification required** and support Start, Stop and Remove.
+The registration survives app restart. Project linking remains blocked in the backend
+until preparation is verified. In this implementation step, **Verify environment** is
+shown but disabled; the verification and explicit preparation flow follows separately.
+A Start on an imported sandbox without a registered SSH target starts the sandbox
+without configuring or connecting SSH.
+
+## Create a sandbox
 
 Choose **New sandbox**, enter a name and an absolute shared folder, or use
 **Choose folder**. A missing directory is created only when the checkbox explicitly
 requests it. Names use 2–63 letters, digits, dots or hyphens and start with a letter
-or digit. `default` is reserved.
-
-Use **Adopt NAME** for an existing shell sandbox. Willy checks its observed ID,
-agent and shared folder before provisioning; it does not create a duplicate.
-The first reported shared folder is used when a sandbox has multiple mounts.
-The name and shared folder remain fixed when resuming a managed sandbox.
+or digit. `default` is reserved. The name and shared folder remain fixed when
+resuming preparation.
 
 Provisioning starts a stopped sandbox. The required base contains Python, Git,
 curl, CA certificates, Node.js, npm, build tools, just and zsh. uv, Claude Code,
@@ -90,8 +95,9 @@ attempted against its replacement.
 3. Close and reopen settings during installation. The phase should still be visible
    and a second provisioning operation should be disabled.
 4. Wait for Tools installed, installed versions and the SSH host in SSH settings.
-5. Adopt an existing shell sandbox. Its ID and mount should be preserved and no
-   second sandbox created.
+5. Import an existing stopped shell sandbox with Manage in Willy. Its ID, selected
+   mount and stopped state must remain unchanged; no tools should be installed.
+   Restart Willy and confirm its registration and lifecycle controls remain available.
 6. On failure, read the phase/error, fix the prerequisite, then use Resume / configure.
    Restarting the app during provisioning must show Interrupted, never a false Tools installed status.
 
@@ -100,8 +106,7 @@ accessible to other applications on the host.
 
 ## Network rules (Step 3)
 
-Open **Network and credentials** on a managed sandbox. Adopt an existing sandbox
-first if it only appears in diagnostics. The editor accepts ASCII domains (or
+Open **Network and credentials** on a managed sandbox. Import an external sandbox first if it is not yet managed by Willy. The editor accepts ASCII domains (or
 punycode), `*.example.com`, `**.example.com`, and an optional TCP port from 1 to 65535. URLs, arbitrary glob expressions and the universal `**` destination are
 not accepted by this editor.
 

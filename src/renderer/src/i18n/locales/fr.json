@@ -111,6 +111,18 @@
   },
   "settings": {
     "sandbox": {
+      "managedByWilly": "Gérées par Willy",
+      "managedDescription": "Sandboxes enregistrées dans Willy.",
+      "externalDescription": "Sandboxes pas encore gérées par Willy. Importez-en une pour activer sa gestion.",
+      "importNotice": "Enregistrez cette sandbox dans Willy sans la démarrer ni installer d’outils. SSH, les règles réseau et les fichiers partagés restent inchangés.",
+      "importMount": "Dossier partagé à gérer",
+      "chooseMount": "Choisissez un dossier partagé",
+      "importing": "Importation…",
+      "manageInWilly": "Gérer dans Willy",
+      "needsVerification": "Vérification requise",
+      "projectsAndTools": "Projets et outils",
+      "importNeedsVerification": "L’accès SSH et les outils requis doivent être vérifiés avant de lier des projets. L’importation ne configure pas l’environnement.",
+      "verifyEnvironment": "Vérifier l’environnement",
       "closeDetails": "Fermer les détails",
       "closeNamed": "Fermer les détails de {{name}}",
       "external": "Externe",

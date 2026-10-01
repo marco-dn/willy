@@ -1,3 +1,4 @@
+import type { SandboxTarget } from './sandbox-policy-types'
 import type { SandboxLifecycleState } from './sandbox-lifecycle-types'
 export const SANDBOX_TOOLS = ['uv', 'claude', 'codex', 'databricks', 'orca-skills'] as const
 export type SandboxTool = (typeof SANDBOX_TOOLS)[number]
@@ -9,6 +10,7 @@ export type SandboxProvisionRequest = {
   tools: SandboxTool[]
   sandboxId?: string
 }
+export type SandboxImportRequest = { target: SandboxTarget; mountPath: string }
 export type SandboxProvisionStage =
   | 'sandbox'
   | 'ssh'
@@ -26,7 +28,7 @@ export type ManagedSandbox = {
   sshTargetId?: string
   tools: SandboxTool[]
   operationId: string
-  status: 'provisioning' | 'ready' | 'error' | 'interrupted'
+  status: 'provisioning' | 'ready' | 'error' | 'interrupted' | 'imported'
   stage: SandboxProvisionStage
   updatedAt: number
   logs: string[]

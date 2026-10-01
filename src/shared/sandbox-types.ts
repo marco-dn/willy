@@ -6,7 +6,11 @@ import type {
   SandboxNetworkCheck,
   SandboxCredentialEvent
 } from './sandbox-policy-types'
-import type { ManagedSandbox, SandboxProvisionRequest } from './sandbox-provisioning-types'
+import type {
+  ManagedSandbox,
+  SandboxProvisionRequest,
+  SandboxImportRequest
+} from './sandbox-provisioning-types'
 export type SandboxSummary = {
   id: string
   name: string
@@ -33,6 +37,7 @@ export type SandboxInspection = {
 )
 
 export type SandboxesApi = {
+  importExisting: (request: SandboxImportRequest) => Promise<ManagedSandbox>
   lifecycleSnapshot: (target: SandboxTarget) => Promise<SandboxLifecycleSnapshot>
   lifecycle: (request: SandboxLifecycleRequest) => Promise<void>
   linkProject: (request: SandboxProjectLinkRequest) => Promise<void>

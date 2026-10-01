@@ -12,6 +12,18 @@
   },
   "settings": {
     "sandbox": {
+      "managedByWilly": "由 Willy 管理",
+      "managedDescription": "已在 Willy 中登记的沙箱。",
+      "externalDescription": "尚未由 Willy 管理的沙箱。导入后即可管理。",
+      "importNotice": "将此沙箱登记到 Willy，不启动沙箱或安装工具。SSH、网络规则和共享文件保持不变。",
+      "importMount": "要管理的共享文件夹",
+      "chooseMount": "选择共享文件夹",
+      "importing": "正在导入…",
+      "manageInWilly": "在 Willy 中管理",
+      "needsVerification": "需要验证",
+      "projectsAndTools": "项目和工具",
+      "importNeedsVerification": "关联项目之前必须验证 SSH 访问和必需工具。导入不会配置环境。",
+      "verifyEnvironment": "验证环境",
       "closeDetails": "收起详情",
       "closeNamed": "收起 {{name}} 的详情",
       "external": "外部",

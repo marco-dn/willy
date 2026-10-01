@@ -99,6 +99,14 @@ export function registerSandboxHandlers(store?: Store, mainWindow?: BrowserWindo
   ipcMain.handle('sandboxes:provision', (_event, request: unknown) =>
     provisioningManager().provision(request)
   )
+  ipcMain.removeHandler('sandboxes:import')
+  ipcMain.handle('sandboxes:import', async (_event, request: unknown) => {
+    const record = await provisioningManager().importExisting(request)
+    if (mainWindow) {
+      notifyReposChanged(mainWindow)
+    }
+    return record
+  })
   ipcMain.removeHandler('sandboxes:inspect')
   ipcMain.handle('sandboxes:inspect', () => {
     // Share probes across windows without retaining stale observations.

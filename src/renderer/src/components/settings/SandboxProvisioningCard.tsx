@@ -45,17 +45,36 @@ export function SandboxProvisioningCard({
           <pre className="whitespace-pre-wrap text-xs">{record.versions.join('\n')}</pre>
         </details>
       ) : null}
-      <details>
-        <summary className="cursor-pointer text-sm">
-          {translate('settings.sandbox.logs', 'Recent logs')}
-        </summary>
-        <pre className="scrollbar-sleek max-h-48 overflow-auto whitespace-pre-wrap break-all text-xs text-muted-foreground">
-          {record.logs.join('\n')}
-        </pre>
-      </details>
-      <Button variant="outline" size="sm" disabled={disabled} onClick={onConfigure}>
-        {translate('settings.sandbox.resume', 'Resume / configure')}
-      </Button>
+      {record.status === 'imported' ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">
+            {translate('settings.sandbox.projectsAndTools', 'Projects and tools')}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {translate(
+              'settings.sandbox.importNeedsVerification',
+              'SSH access and required tools must be verified before linking projects. Importing does not configure the environment.'
+            )}
+          </p>
+          <Button variant="outline" size="sm" disabled>
+            {translate('settings.sandbox.verifyEnvironment', 'Verify environment')}
+          </Button>
+        </div>
+      ) : (
+        <>
+          <details>
+            <summary className="cursor-pointer text-sm">
+              {translate('settings.sandbox.logs', 'Recent logs')}
+            </summary>
+            <pre className="scrollbar-sleek max-h-48 overflow-auto whitespace-pre-wrap break-all text-xs text-muted-foreground">
+              {record.logs.join('\n')}
+            </pre>
+          </details>
+          <Button variant="outline" size="sm" disabled={disabled} onClick={onConfigure}>
+            {translate('settings.sandbox.resume', 'Resume / configure')}
+          </Button>
+        </>
+      )}
       {record.status === 'ready' && record.sandboxId ? (
         <details>
           <summary className="cursor-pointer text-sm">

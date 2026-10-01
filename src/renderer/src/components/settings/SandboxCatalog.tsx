@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
 import {
   SANDBOX_TOOLS,
@@ -8,6 +9,7 @@ import type { SandboxSummary } from '../../../../shared/sandbox-types'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
+import { SandboxImportPanel } from './SandboxImportPanel'
 import { SandboxProvisionForm } from './SandboxProvisionForm'
 import { SandboxProvisioningCard } from './SandboxProvisioningCard'
 import { useSandboxRecords } from './useSandboxRecords'
@@ -33,9 +35,30 @@ export function SandboxCatalog({
     revision,
     onInventoryChange
   )
+  const mounted = useMountedRef()
   const [selected, setSelected] = useState<string>()
   const [request, setRequest] = useState<SandboxProvisionRequest>()
   const entries = sandboxCatalogEntries(sandboxes, records, available)
+  const groups = [
+    {
+      key: 'managed',
+      title: translate('settings.sandbox.managedByWilly', 'Managed by Willy'),
+      description: translate(
+        'settings.sandbox.managedDescription',
+        'Sandboxes registered in Willy.'
+      ),
+      entries: entries.filter((item) => item.record)
+    },
+    {
+      key: 'external',
+      title: translate('settings.sandbox.external', 'External'),
+      description: translate(
+        'settings.sandbox.externalDescription',
+        'Sandboxes not yet managed by Willy. Import one to enable management.'
+      ),
+      entries: entries.filter((item) => !item.record)
+    }
+  ]
   const disabled =
     !available || !loaded || records.some((record) => record.status === 'provisioning')
   const back = () => {
@@ -91,117 +114,114 @@ export function SandboxCatalog({
               {translate('settings.sandbox.empty', 'No local sandboxes found.')}
             </p>
           ) : null}
-          <ul
-            className="space-y-3"
-            aria-label={translate('settings.sandbox.list', 'Local sandboxes')}
-          >
-            {entries.map((item) => (
-              <Collapsible
-                key={item.key}
-                open={selected === item.key}
-                onOpenChange={(open) => setSelected(open ? item.key : undefined)}
-                asChild
+          {groups
+            .filter((group) => group.entries.length > 0)
+            .map((group) => (
+              <section
+                key={group.key}
+                aria-label={group.title}
+                className="space-y-3 border-t border-border pt-4"
               >
-                <li className="space-y-2 rounded-lg border border-border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="break-all text-sm font-medium">{item.name}</span>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">{sandboxCatalogStateCopy(item.state)}</Badge>
-                      <Badge variant="outline">{sandboxManagementCopy(item.record)}</Badge>
-                    </div>
-                  </div>
-                  {item.mounts.map((mount) => (
-                    <p key={mount} className="break-all font-mono text-xs">
-                      {mount}
-                    </p>
-                  ))}
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      disabled={!loaded}
-                      variant="outline"
-                      size="sm"
-                      aria-label={
-                        selected === item.key
-                          ? translate('settings.sandbox.closeNamed', 'Close {{name}} details', {
-                              name: item.name
-                            })
-                          : translate('settings.sandbox.openNamed', 'Open {{name}}', {
-                              name: item.name
-                            })
-                      }
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold">{group.title}</h3>
+                  <Badge variant="secondary">{group.entries.length}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{group.description}</p>
+                <ul className="space-y-3" aria-label={group.title}>
+                  {group.entries.map((item) => (
+                    <Collapsible
+                      key={item.key}
+                      open={selected === item.key}
+                      onOpenChange={(open) => setSelected(open ? item.key : undefined)}
+                      asChild
                     >
-                      {selected === item.key
-                        ? translate('settings.sandbox.closeDetails', 'Close details')
-                        : translate('settings.sandbox.openDetails', 'Open details')}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="pt-3">
-                      {item.record ? (
-                        <SandboxProvisioningCard
-                          key={item.key}
-                          record={item.record}
-                          disabled={disabled}
-                          onConfigure={() => {
-                            const record = item.record
-                            if (record) {
-                              setRequest({
-                                mode: 'resume',
-                                name: record.name,
-                                mountPath: record.mountPath,
-                                sandboxId: record.sandboxId,
-                                createMount: false,
-                                tools: record.tools
-                              })
-                            }
-                          }}
-                        />
-                      ) : item.observed ? (
-                        <div className="space-y-3">
-                          <p className="text-xs text-muted-foreground">
-                            {translate('settings.sandbox.agent', 'Agent: {{agent}}', {
-                              agent: item.observed.agent
-                            })}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.observed.agent === 'shell' && item.mounts.length
-                              ? translate(
-                                  'settings.sandbox.externalAdoptionNotice',
-                                  'This sandbox was created outside Willy. Adoption currently installs the required base and selected tools before enabling project management.'
-                                )
-                              : translate(
-                                  'settings.sandbox.externalUnsupported',
-                                  'Willy can manage only shell sandboxes with a shared folder.'
-                                )}
-                          </p>
-                          {item.observed.agent === 'shell' && item.mounts.length > 0 ? (
-                            <Button
-                              variant="outline"
-                              disabled={disabled}
-                              onClick={() =>
-                                setRequest({
-                                  mode: 'adopt',
-                                  name: item.name,
-                                  sandboxId: item.observed?.id,
-                                  mountPath: item.mounts[0],
-                                  createMount: false,
-                                  tools: [...SANDBOX_TOOLS]
-                                })
-                              }
-                            >
-                              {translate('settings.sandbox.adopt', 'Adopt {{name}}', {
-                                name: item.name
-                              })}
-                            </Button>
-                          ) : null}
+                      <li className="space-y-2 rounded-lg border border-border p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <span className="break-all text-sm font-medium">{item.name}</span>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{sandboxCatalogStateCopy(item.state)}</Badge>
+                            <Badge variant="outline">{sandboxManagementCopy(item.record)}</Badge>
+                          </div>
                         </div>
-                      ) : null}
-                    </div>
-                  </CollapsibleContent>
-                </li>
-              </Collapsible>
+                        {item.mounts.map((mount) => (
+                          <p key={mount} className="break-all font-mono text-xs">
+                            {mount}
+                          </p>
+                        ))}
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            disabled={!loaded}
+                            variant="outline"
+                            size="sm"
+                            aria-label={
+                              selected === item.key
+                                ? translate(
+                                    'settings.sandbox.closeNamed',
+                                    'Close {{name}} details',
+                                    {
+                                      name: item.name
+                                    }
+                                  )
+                                : translate('settings.sandbox.openNamed', 'Open {{name}}', {
+                                    name: item.name
+                                  })
+                            }
+                          >
+                            {selected === item.key
+                              ? translate('settings.sandbox.closeDetails', 'Close details')
+                              : translate('settings.sandbox.openDetails', 'Open details')}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="pt-3">
+                            {item.record ? (
+                              <SandboxProvisioningCard
+                                key={item.key}
+                                record={item.record}
+                                disabled={disabled}
+                                onConfigure={() => {
+                                  const record = item.record
+                                  if (record) {
+                                    setRequest({
+                                      mode: 'resume',
+                                      name: record.name,
+                                      mountPath: record.mountPath,
+                                      sandboxId: record.sandboxId,
+                                      createMount: false,
+                                      tools: record.tools
+                                    })
+                                  }
+                                }}
+                              />
+                            ) : item.observed ? (
+                              <SandboxImportPanel
+                                sandbox={item.observed}
+                                disabled={disabled}
+                                onImported={(record) => {
+                                  if (!mounted.current) {
+                                    return
+                                  }
+                                  setRecords((previous) =>
+                                    previous
+                                      .filter((item) => item.name !== record.name)
+                                      .concat(record)
+                                  )
+                                  setSelected((current) =>
+                                    current === item.key ? `managed:${record.name}` : current
+                                  )
+                                  reload()
+                                  onInventoryChange()
+                                }}
+                              />
+                            ) : null}
+                          </div>
+                        </CollapsibleContent>
+                      </li>
+                    </Collapsible>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
         </>
       )}
     </div>

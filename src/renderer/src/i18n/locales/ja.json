@@ -12,6 +12,18 @@
   },
   "settings": {
     "sandbox": {
+      "managedByWilly": "Willyで管理",
+      "managedDescription": "Willyに登録されたサンドボックス。",
+      "externalDescription": "まだWillyで管理されていないサンドボックス。インポートすると管理できます。",
+      "importNotice": "起動やツールのインストールをせずにWillyに登録します。SSH、ネットワークルール、共有ファイルは変更されません。",
+      "importMount": "管理する共有フォルダー",
+      "chooseMount": "共有フォルダーを選択",
+      "importing": "インポート中…",
+      "manageInWilly": "Willyで管理",
+      "needsVerification": "確認が必要",
+      "projectsAndTools": "プロジェクトとツール",
+      "importNeedsVerification": "プロジェクトを関連付ける前にSSHアクセスと必須ツールの確認が必要です。インポートでは環境を設定しません。",
+      "verifyEnvironment": "環境を確認",
       "closeDetails": "詳細を閉じる",
       "closeNamed": "{{name}}の詳細を閉じる",
       "external": "外部",

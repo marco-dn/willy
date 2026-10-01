@@ -1,3 +1,4 @@
+import { importSandboxRegistration } from './sandbox-import'
 import { recoverSandboxProvisioningRecords } from './sandbox-provisioning-recovery'
 import { sandboxTargetSchema } from './sandbox-policy-response'
 import { randomUUID } from 'node:crypto'
@@ -37,7 +38,12 @@ export class SandboxProvisioningManager {
     private store: SandboxProvisioningStore,
     private dependencies: Dependencies
   ) {
-    this.recovery = this.recover()
+    this.recovery = recoverSandboxProvisioningRecords({
+      list: () => this.store.list(),
+      save: (record) => this.save(record),
+      command: () => this.dependencies.command(),
+      verify: (record, run) => this.verifyIdentity(record, run)
+    })
   }
   async list(): Promise<ManagedSandbox[]> {
     await this.recovery
@@ -53,10 +59,7 @@ export class SandboxProvisioningManager {
           record.lifecycle.error
       )
   }
-  async acquireSandbox(
-    input: unknown,
-    options?: { skipInspection: boolean }
-  ): Promise<SandboxAccess> {
+  private async acquireOperation(): Promise<() => void> {
     await this.recovery
     if (this.persistenceError) {
       throw this.persistenceError
@@ -65,6 +68,27 @@ export class SandboxProvisioningManager {
       throw new Error('Another sandbox operation is running. Wait for it to finish.')
     }
     this.busy = true
+    let released = false
+    return () => {
+      if (!released) {
+        released = true
+        this.busy = false
+      }
+    }
+  }
+  async importExisting(input: unknown): Promise<ManagedSandbox> {
+    const release = await this.acquireOperation()
+    try {
+      return await importSandboxRegistration(input, this.store, this.dependencies.command)
+    } finally {
+      release()
+    }
+  }
+  async acquireSandbox(
+    input: unknown,
+    options?: { skipInspection: boolean }
+  ): Promise<SandboxAccess> {
+    const release = await this.acquireOperation()
     try {
       const target = sandboxTargetSchema.parse(input)
       const record = this.store
@@ -86,30 +110,14 @@ export class SandboxProvisioningManager {
         }
         await this.verifyIdentity(record, run)
       }
-      let released = false
-      return {
-        run,
-        release: () => {
-          if (!released) {
-            released = true
-            this.busy = false
-          }
-        }
-      }
+      return { run, release }
     } catch (error) {
-      this.busy = false
+      release()
       throw error
     }
   }
   async provision(input: unknown): Promise<ManagedSandbox> {
-    await this.recovery
-    if (this.persistenceError) {
-      throw this.persistenceError
-    }
-    if (this.busy) {
-      throw new Error('Another sandbox operation is running. Wait for it to finish.')
-    }
-    this.busy = true
+    const release = await this.acquireOperation()
     try {
       const request = provisionRequestSchema.parse(input)
       if (request.name === 'default') {
@@ -176,7 +184,7 @@ export class SandboxProvisioningManager {
       this.store.save(record)
       void this.execute(record, run)
         .finally(() => {
-          this.busy = false
+          release()
         })
         .catch((error: unknown) => {
           this.persistenceError = new Error(
@@ -185,7 +193,7 @@ export class SandboxProvisioningManager {
         })
       return structuredClone(record)
     } catch (error) {
-      this.busy = false
+      release()
       throw error
     }
   }
@@ -287,14 +295,6 @@ export class SandboxProvisioningManager {
     record.status = failure ? 'error' : 'ready'
     record.error = failure
     this.save(record)
-  }
-  private recover(): Promise<void> {
-    return recoverSandboxProvisioningRecords({
-      list: () => this.store.list(),
-      save: (record) => this.save(record),
-      command: () => this.dependencies.command(),
-      verify: (record, run) => this.verifyIdentity(record, run)
-    })
   }
 }
 export const defaultSandboxCommands = { command: createSandboxCommand, ssh: runSandboxSsh }

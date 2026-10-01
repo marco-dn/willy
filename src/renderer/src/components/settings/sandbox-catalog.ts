@@ -50,6 +50,9 @@ export function sandboxManagementCopy(record?: ManagedSandbox): string {
   if (!record) {
     return translate('settings.sandbox.external', 'External')
   }
+  if (record.status === 'imported') {
+    return translate('settings.sandbox.needsVerification', 'Verification required')
+  }
   if (record.status === 'ready') {
     return translate('settings.sandbox.configured', 'Configured')
   }

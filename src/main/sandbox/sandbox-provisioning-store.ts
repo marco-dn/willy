@@ -34,7 +34,7 @@ const recordSchema = z.object({
   sshTargetId: z.string().optional(),
   tools,
   operationId: z.string(),
-  status: z.enum(['provisioning', 'ready', 'error', 'interrupted']),
+  status: z.enum(['provisioning', 'ready', 'error', 'interrupted', 'imported']),
   stage: z.enum([
     'sandbox',
     'ssh',
