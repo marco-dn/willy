@@ -148,7 +148,8 @@ export function SandboxLifecyclePanel({
             busy ||
             !snapshot ||
             snapshot.state === 'missing' ||
-            snapshot.state === 'unavailable'
+            snapshot.state === 'unavailable' ||
+            (snapshot.state === 'running' && !snapshot.lifecycle?.pending)
           }
           onClick={() => void perform(() => execute('start'))}
         >

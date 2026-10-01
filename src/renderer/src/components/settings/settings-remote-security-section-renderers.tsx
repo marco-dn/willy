@@ -69,7 +69,7 @@ export function renderSandboxSettingsSection(
       title={translate('settings.sandbox.title', 'Sandbox')}
       description={translate(
         'settings.sandbox.description',
-        'Inspect Docker Sandboxes on this computer.'
+        'Create and manage Docker Sandboxes on this computer.'
       )}
       searchEntries={navigation.getSectionSearchEntries('sandbox')}
     >

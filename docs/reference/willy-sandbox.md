@@ -5,9 +5,28 @@ its login if required, and start its local daemon outside Willy. OpenSSH must be
 the host. The Linux shell template needs `sudo` without a password, `apt-get` and
 `flock`. Willy does not provision sandboxes on remote SSH hosts or in the cloud.
 
+## Sandbox list and details
+
+Settings → Sandbox shows one catalog combining the sbx inventory with saved Willy
+records by UUID. Each row separates observed execution state from preparation status.
+Expand a row in the same list for lifecycle controls, projects and network settings; tool versions
+and recent logs are expandable. Diagnostics contains service information, not another
+sandbox list. A service error reports unknown state rather than removal.
+
+**New sandbox** opens a dedicated form. Once submitted, its detail shows background
+progress. **Close details** collapses the row without cancelling preparation;
+completed preparation shows Configured and no active phase. Start is disabled when
+already running unless an incomplete operation needs retry; Stop is disabled when
+already stopped.
+
+External sandboxes appear in the same catalog. For now, their details retain the
+existing adoption flow, which installs the required base and selected tools. Import
+without installation will be introduced separately; opening a detail never adopts
+or installs anything.
+
 ## Create or adopt
 
-Choose **Create sandbox**, enter a name and an absolute shared folder, or use
+Choose **New sandbox**, enter a name and an absolute shared folder, or use
 **Choose folder**. A missing directory is created only when the checkbox explicitly
 requests it. Names use 2–63 letters, digits, dots or hyphens and start with a letter
 or digit. `default` is reserved.

@@ -5,7 +5,12 @@ import type { SandboxInspection } from '../../../../shared/sandbox-types'
 import { SandboxPane } from './SandboxPane'
 
 const inspect = vi.fn<() => Promise<SandboxInspection>>()
-let notifyReposChanged = () => {}
+const repoListeners = new Set<() => void>()
+const notifyReposChanged = () => {
+  for (const listener of repoListeners) {
+    listener()
+  }
+}
 const ready: SandboxInspection = {
   status: 'ready',
   cliPath: '/tools/sbx',
@@ -25,13 +30,14 @@ const ready: SandboxInspection = {
 
 beforeEach(() => {
   inspect.mockReset()
+  repoListeners.clear()
   vi.stubGlobal('api', {
     sandboxes: { inspect, listManaged: vi.fn().mockResolvedValue([]) },
     repos: {
       onChanged: (callback: () => void) => {
-        notifyReposChanged = callback
+        repoListeners.add(callback)
         return () => {
-          notifyReposChanged = () => {}
+          repoListeners.delete(callback)
         }
       }
     }
@@ -49,6 +55,7 @@ describe('SandboxPane', () => {
     expect(await screen.findByText('demo-sandbox')).toBeTruthy()
     expect(screen.getByText('/work/demo')).toBeTruthy()
     expect(screen.getByText('Running')).toBeTruthy()
+    fireEvent.click(screen.getByText('Diagnostic details'))
     expect(screen.getByText('sbx CLI: v0.45.1')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()
   })
@@ -125,7 +132,7 @@ describe('SandboxPane', () => {
     )
     render(<SandboxPane />)
     expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(true)
-    expect(screen.getByRole('status').textContent).toContain('Checking local sbx')
+    expect(screen.getByText('Checking local sbx…')).toBeTruthy()
     resolveInspection?.(ready)
     await screen.findByText('demo-sandbox')
     inspect.mockRejectedValueOnce(new Error('IPC unavailable'))

@@ -65,6 +65,19 @@ describe('sandbox lifecycle controls', () => {
     await screen.findByText('Running')
     expect(stop.hasAttribute('disabled')).toBe(false)
   })
+  it('disables Start when running but permits retry of an incomplete start', async () => {
+    render(<SandboxLifecyclePanel target={target} disabled={false} />)
+    await screen.findByText('Running')
+    const start = screen.getByRole('button', { name: 'Start sandbox' })
+    expect(start.hasAttribute('disabled')).toBe(true)
+    snapshot.mockResolvedValue({
+      state: 'running',
+      projects,
+      lifecycle: { desired: 'running', pending: 'start' }
+    })
+    act(() => notifyReposChanged())
+    await waitFor(() => expect(start.hasAttribute('disabled')).toBe(false))
+  })
   it('disables removal while any project is linked', async () => {
     render(<SandboxLifecyclePanel target={target} disabled={false} />)
     await screen.findByText('Running')

@@ -7,14 +7,14 @@ export const getSandboxPaneSearchEntries = createLocalizedCatalog(() => [
     title: translate('settings.sandbox.title', 'Sandbox'),
     description: translate(
       'settings.sandbox.description',
-      'Create, provision and inspect Docker Sandboxes on this computer.'
+      'Create and manage Docker Sandboxes on this computer.'
     ),
     keywords: [
       'sbx',
       'Docker',
       'sandbox',
       ...translateSearchKeyword('settings.sandbox.networkCredentials', 'Network and credentials'),
-      ...translateSearchKeyword('settings.sandbox.create', 'Create sandbox'),
+      ...translateSearchKeyword('settings.sandbox.newSandbox', 'New sandbox'),
       ...translateSearchKeyword('settings.sandbox.provisioning', 'Provisioning'),
       ...translateSearchKeyword('settings.sandbox.diagnostics', 'Diagnostics'),
       ...translateSearchKeyword('settings.sandbox.mounts', 'Shared folders')

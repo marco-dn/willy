@@ -5,9 +5,8 @@ import { translate } from '@/i18n/i18n'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import type { SandboxInspection } from '../../../../shared/sandbox-types'
 import { Button } from '../ui/button'
-import { Badge } from '../ui/badge'
-import { SandboxProvisioning } from './SandboxProvisioning'
-import { sandboxErrorCopy, sandboxStatusCopy } from './sandbox-status-copy'
+import { SandboxCatalog } from './SandboxCatalog'
+import { sandboxErrorCopy } from './sandbox-status-copy'
 
 type InspectionState =
   | { status: 'loading' }
@@ -17,6 +16,7 @@ type InspectionState =
 export function SandboxPane(): React.JSX.Element {
   useTranslation()
   const [state, setState] = useState<InspectionState>({ status: 'loading' })
+  const [revision, setRevision] = useState(0)
   const inFlight = useRef(false)
   const refreshRequested = useRef(false)
   const mounted = useMountedRef()
@@ -27,6 +27,7 @@ export function SandboxPane(): React.JSX.Element {
     }
     inFlight.current = true
     setState({ status: 'loading' })
+    setRevision((value) => value + 1)
     try {
       do {
         refreshRequested.current = false
@@ -82,7 +83,9 @@ export function SandboxPane(): React.JSX.Element {
       ) : (
         <SandboxInspectionResult inspection={state.inspection} />
       )}
-      <SandboxProvisioning
+      <SandboxCatalog
+        revision={revision}
+        onInventoryChange={refresh}
         available={state.status === 'loaded' && state.inspection.status === 'ready'}
         sandboxes={
           state.status === 'loaded' && state.inspection.status === 'ready'
@@ -95,12 +98,6 @@ export function SandboxPane(): React.JSX.Element {
           {translate('settings.sandbox.installGuide', 'Docker Sandboxes installation guide')}
         </a>
       </Button>
-      <p className="text-xs text-muted-foreground">
-        {translate(
-          'settings.sandbox.provisioningLimit',
-          'Manage lifecycle controls below for sandboxes provisioned or adopted by Willy.'
-        )}
-      </p>
     </div>
   )
 }
@@ -113,7 +110,10 @@ function SandboxInspectionResult({
   return (
     <div className="space-y-3">
       {inspection.cliPath ? (
-        <div className="space-y-1 text-xs text-muted-foreground">
+        <details className="space-y-1 text-xs text-muted-foreground">
+          <summary className="cursor-pointer text-sm">
+            {translate('settings.sandbox.diagnosticDetails', 'Diagnostic details')}
+          </summary>
           <p className="break-all font-mono">{inspection.cliPath}</p>
           {inspection.clientVersion ? (
             <p>
@@ -129,7 +129,7 @@ function SandboxInspectionResult({
               })}
             </p>
           ) : null}
-        </div>
+        </details>
       ) : null}
       {inspection.status === 'error' ? (
         <div role="alert" className="space-y-2">
@@ -140,42 +140,7 @@ function SandboxInspectionResult({
             </pre>
           ) : null}
         </div>
-      ) : inspection.sandboxes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {translate('settings.sandbox.empty', 'No local sandboxes found.')}
-        </p>
-      ) : (
-        <ul
-          className="space-y-3"
-          aria-label={translate('settings.sandbox.list', 'Local sandboxes')}
-        >
-          {inspection.sandboxes.map((sandbox) => (
-            <li key={sandbox.id} className="space-y-2 rounded-lg border border-border p-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="break-all text-sm font-medium">{sandbox.name}</span>
-                <Badge variant="secondary">{sandboxStatusCopy(sandbox.status)}</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {translate('settings.sandbox.agent', 'Agent: {{agent}}', { agent: sandbox.agent })}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {translate('settings.sandbox.mounts', 'Shared folders')}
-              </p>
-              {sandbox.workspaces.length ? (
-                sandbox.workspaces.map((mount) => (
-                  <p key={mount} className="break-all font-mono text-xs">
-                    {mount}
-                  </p>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  {translate('settings.sandbox.noMounts', 'No shared folders reported.')}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      ) : null}
     </div>
   )
 }

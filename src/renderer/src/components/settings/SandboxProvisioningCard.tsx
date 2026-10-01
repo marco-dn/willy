@@ -6,7 +6,6 @@ import { translate } from '@/i18n/i18n'
 import type { ManagedSandbox } from '../../../../shared/sandbox-provisioning-types'
 import { Button } from '../ui/button'
 import { sandboxPhaseCopy } from './sandbox-status-copy'
-import { Badge } from '../ui/badge'
 
 export function SandboxProvisioningCard({
   record,
@@ -18,21 +17,8 @@ export function SandboxProvisioningCard({
   onConfigure: () => void
 }): React.JSX.Element {
   const [accessOpen, setAccessOpen] = useState(false)
-  const status =
-    record.status === 'ready'
-      ? translate('settings.sandbox.toolsInstalled', 'Tools installed')
-      : record.status === 'provisioning'
-        ? translate('settings.sandbox.provisioning', 'Provisioning')
-        : record.status === 'interrupted'
-          ? translate('settings.sandbox.interrupted', 'Interrupted')
-          : translate('settings.sandbox.incomplete', 'Incomplete')
   return (
-    <div className="space-y-2 rounded-lg border border-border p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="break-all text-sm font-medium">{record.name}.sbx</span>
-        <Badge variant="secondary">{status}</Badge>
-      </div>
-      <p className="break-all font-mono text-xs">{record.mountPath}</p>
+    <div className="space-y-2">
       {record.sandboxId ? (
         <SandboxLifecyclePanel
           target={{ name: record.name, id: record.sandboxId }}
@@ -52,7 +38,12 @@ export function SandboxProvisioningCard({
         </p>
       ) : null}
       {record.versions.length ? (
-        <pre className="whitespace-pre-wrap text-xs">{record.versions.join('\n')}</pre>
+        <details>
+          <summary className="cursor-pointer text-sm">
+            {translate('settings.sandbox.toolsInstalled', 'Tools installed')}
+          </summary>
+          <pre className="whitespace-pre-wrap text-xs">{record.versions.join('\n')}</pre>
+        </details>
       ) : null}
       <details>
         <summary className="cursor-pointer text-sm">
