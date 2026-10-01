@@ -1,3 +1,5 @@
+import { SandboxEnvironmentService } from './sandbox-environment-service'
+import { SANDBOX_BASE_TOOLS } from './sandbox-installers'
 import { SandboxLifecycleService } from './sandbox-lifecycle-service'
 import { SandboxExecutionPolicy } from './sandbox-execution-policy'
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -225,4 +227,64 @@ describe('sandbox import without preparation', () => {
     access.release()
     expect(await f.manager.importExisting(f.request)).toEqual(record)
   })
+})
+
+it('imports, verifies and reloads through the real operation lock without provisioning', async () => {
+  const f = fixture()
+  await f.manager.importExisting(f.request)
+  const gate = Promise.withResolvers<string>()
+  const ssh = vi.fn(async () => gate.promise)
+  const registerTarget = vi.fn(async () => 'verified-ssh')
+  const service = new SandboxEnvironmentService({
+    records: f.store,
+    acquire: (target) => f.manager.acquireSandbox(target, { skipInspection: true }),
+    inspectSsh: vi.fn(async () => undefined),
+    ssh,
+    relay: () => ({ id: 'relay', status: 'ok', detail: 'compatible' }),
+    registerTarget,
+    changed: vi.fn()
+  })
+  expect((await service.verify(f.request.target)).outcome).toBe('unavailable')
+  expect(ssh).not.toHaveBeenCalled()
+  f.setInventory([{ ...f.inventory()[0], status: 'running' }])
+  const pending = service.verify(f.request.target)
+  await vi.waitFor(() => expect(ssh).toHaveBeenCalledOnce())
+  await expect(f.manager.importExisting(f.request)).rejects.toThrow('Another sandbox operation')
+  await expect(f.manager.provision({})).rejects.toThrow('Another sandbox operation')
+  gate.resolve(
+    [
+      'identity',
+      'mount',
+      'preparation',
+      'certificates',
+      'platform',
+      'libc',
+      ...SANDBOX_BASE_TOOLS,
+      'flock'
+    ]
+      .map(
+        (id) =>
+          `WILLY_ENV ${id} ok ${Buffer.from(id === 'identity' ? f.request.target.id : 'verified').toString('base64')}`
+      )
+      .join('\n')
+  )
+  expect((await pending).outcome).toBe('ready')
+  expect(
+    f.run.mock.calls.every(([args]) => JSON.stringify(args) === JSON.stringify(['ls', '--json']))
+  ).toBe(true)
+  expect(f.dependencies.ssh).not.toHaveBeenCalled()
+  expect(f.dependencies.connectTarget).not.toHaveBeenCalled()
+  const reopened = new SandboxProvisioningManager(
+    new SandboxProvisioningStore(f.file),
+    f.dependencies
+  )
+  expect(await reopened.list()).toEqual([
+    expect.objectContaining({
+      status: 'ready',
+      tools: [],
+      sshTargetId: 'verified-ssh',
+      verification: expect.objectContaining({ outcome: 'ready' })
+    })
+  ])
+  expect(await reopened.importExisting(f.request)).toEqual((await reopened.list())[0])
 })

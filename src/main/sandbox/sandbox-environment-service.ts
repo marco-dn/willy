@@ -88,7 +88,8 @@ export class SandboxEnvironmentService {
         }
         if (
           checks.every(
-            (check) => !['identity', 'mount'].includes(check.id) || check.status === 'ok'
+            (check) =>
+              !['identity', 'mount', 'preparation'].includes(check.id) || check.status === 'ok'
           )
         ) {
           checks.push(this.deps.relay(checks))
@@ -99,7 +100,9 @@ export class SandboxEnvironmentService {
           failures.length > 0 &&
           failures.every(
             (check) =>
-              !['identity', 'mount', 'libc', 'platform', 'flock'].includes(check.id) &&
+              !['identity', 'mount', 'preparation', 'libc', 'platform', 'flock'].includes(
+                check.id
+              ) &&
               (check.id !== 'relay' || check.status === 'missing')
           )
         report = {
@@ -116,7 +119,10 @@ export class SandboxEnvironmentService {
           record.status = 'ready'
           record.error = undefined
           record.versions = observedChecks
-            .filter((check) => !['identity', 'mount', 'platform', 'libc'].includes(check.id))
+            .filter(
+              (check) =>
+                !['identity', 'mount', 'preparation', 'platform', 'libc'].includes(check.id)
+            )
             .map((check) => `${check.id} ${check.detail}`)
         }
       } catch (error) {

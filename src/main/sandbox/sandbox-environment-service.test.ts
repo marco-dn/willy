@@ -11,7 +11,16 @@ import { parseSandboxEnvironmentProbe, sandboxEnvironmentProbe } from './sandbox
 const dirs: string[] = []
 afterEach(() => dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 function probe(missing?: string) {
-  return ['identity', 'mount', 'certificates', 'platform', 'libc', ...SANDBOX_BASE_TOOLS, 'flock']
+  return [
+    'identity',
+    'mount',
+    'preparation',
+    'certificates',
+    'platform',
+    'libc',
+    ...SANDBOX_BASE_TOOLS,
+    'flock'
+  ]
     .map(
       (id) =>
         `WILLY_ENV ${id} ${id === missing ? 'missing' : 'ok'} ${Buffer.from(id === 'identity' ? 'uuid' : 'verified').toString('base64')}`
@@ -162,4 +171,52 @@ it('quotes paths and UUIDs without introducing provisioning commands', () => {
   expect(script).toContain("'/shared folder/it'\\''s here'")
   expect(script).not.toMatch(/apt-get|mkdir|sbx exec|setup ssh/)
   expect(script).toContain('timeout 5')
+})
+
+it('rejects an SSH alias that reaches another UUID even when inventory is unchanged', async () => {
+  const f = fixture()
+  f.deps.ssh.mockResolvedValue(
+    probe().replace(
+      Buffer.from('uuid').toString('base64'),
+      Buffer.from('another-uuid').toString('base64')
+    )
+  )
+  expect(await f.service.verify(f.target)).toMatchObject({
+    outcome: 'unavailable',
+    canPrepare: false
+  })
+  expect(f.deps.registerTarget).not.toHaveBeenCalled()
+  expect(f.deps.relay).not.toHaveBeenCalled()
+})
+it('persists a failed recheck without losing the previously registered target', async () => {
+  const f = fixture()
+  await f.service.verify(f.target)
+  f.deps.ssh.mockRejectedValue(new Error('SSH disconnected'))
+  await f.service.verify(f.target)
+  expect(new SandboxProvisioningStore(f.file).list()[0]).toMatchObject({
+    status: 'ready',
+    sshTargetId: 'ssh-id',
+    verification: { outcome: 'unavailable', canPrepare: false }
+  })
+})
+it('preserves explicit stop intent even when inventory still reports running', async () => {
+  const f = fixture()
+  const record = f.deps.records.list()[0]
+  f.deps.records.save({ ...record, lifecycle: { desired: 'stopped' } })
+  expect((await f.service.verify(f.target)).outcome).toBe('unavailable')
+  expect(f.deps.ssh).not.toHaveBeenCalled()
+})
+
+it('does not certify an interrupted environment while earlier preparation is unverifiable', async () => {
+  const f = fixture()
+  const record = f.deps.records.list()[0]
+  f.deps.records.save({ ...record, status: 'interrupted' })
+  f.deps.ssh.mockResolvedValue(probe('preparation'))
+  expect(await f.service.verify(f.target)).toMatchObject({
+    outcome: 'unavailable',
+    canPrepare: false
+  })
+  expect(f.deps.records.list()[0].status).toBe('interrupted')
+  expect(f.deps.registerTarget).not.toHaveBeenCalled()
+  expect(f.deps.relay).not.toHaveBeenCalled()
 })

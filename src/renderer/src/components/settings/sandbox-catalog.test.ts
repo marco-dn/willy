@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ManagedSandbox } from '../../../../shared/sandbox-provisioning-types'
-import { sandboxCatalogEntries } from './sandbox-catalog'
+import { sandboxCatalogEntries, sandboxManagementCopy } from './sandbox-catalog'
 const record: ManagedSandbox = {
   name: 'demo',
   sandboxId: 'id',
@@ -41,4 +41,19 @@ describe('sandbox catalog identity', () => {
     expect(rows).toHaveLength(2)
     expect(rows.find((row) => row.record)?.state).toBe('uncreated')
   })
+})
+
+it.each([
+  ['interrupted', 'Preparation interrupted'],
+  ['error', 'Preparation interrupted'],
+  ['provisioning', 'Preparing'],
+  ['ready', 'Verification required']
+] as const)('keeps %s management state after an unsuccessful verification', (status, label) => {
+  expect(
+    sandboxManagementCopy({
+      ...record,
+      status,
+      verification: { checkedAt: 2, outcome: 'unavailable', canPrepare: false, checks: [] }
+    })
+  ).toBe(label)
 })

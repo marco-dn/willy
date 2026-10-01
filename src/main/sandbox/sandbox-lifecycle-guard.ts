@@ -57,3 +57,22 @@ export async function assertSandboxSshConnectionAllowed(
     assertSandboxLifecycleAllowsExecution(record.sandboxId ?? '')
   }
 }
+
+export async function isSandboxSshTargetConfirmedRemoved(
+  target: Pick<SshTarget, 'id' | 'host' | 'configHost'>
+): Promise<boolean> {
+  const matches = records().filter((record) => record.sshTargetId === target.id)
+  const record = matches.length === 1 ? matches[0] : undefined
+  if (
+    !record?.sandboxId ||
+    (target.configHost ?? target.host) !== `${record.name}.sbx` ||
+    record.lifecycle?.desired !== 'removed' ||
+    record.lifecycle.pending ||
+    record.lifecycle.error
+  ) {
+    return false
+  }
+  const run = await createSandboxCommand()
+  const inventory = parseSbxInventory(await run(['ls', '--json'])).sandboxes
+  return !inventory.some((entry) => entry.id === record.sandboxId || entry.name === record.name)
+}

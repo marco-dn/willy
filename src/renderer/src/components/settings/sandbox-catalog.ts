@@ -52,7 +52,7 @@ export function sandboxManagementCopy(record?: ManagedSandbox): string {
   }
   if (
     record.status === 'imported' ||
-    (record.verification && record.verification.outcome !== 'ready')
+    (record.status === 'ready' && record.verification && record.verification.outcome !== 'ready')
   ) {
     return translate('settings.sandbox.needsVerification', 'Verification required')
   }

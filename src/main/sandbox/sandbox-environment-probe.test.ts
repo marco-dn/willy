@@ -1,7 +1,8 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
+import { quotePosixShell } from '../../shared/wsl-login-shell-command'
 import { runProcess } from '../../shared/child-process/run-process'
 import { parseSandboxEnvironmentProbe, sandboxEnvironmentProbe } from './sandbox-environment-probe'
 
@@ -13,7 +14,10 @@ it.skipIf(process.platform !== 'linux')(
       const result = await runProcess({
         program: '/bin/bash',
         args: ['-s'],
-        input: sandboxEnvironmentProbe('uuid', dir, []),
+        input: sandboxEnvironmentProbe('uuid', dir, []).replaceAll(
+          '$HOME/.local/state/willy-sbx/provision.lock',
+          join(dir, 'absent.lock')
+        ),
         env: { ...process.env, SANDBOX_ID: 'uuid' },
         timeoutMs: 60_000,
         maxOutputBytes: 32_768
@@ -45,5 +49,47 @@ it.skipIf(process.platform !== 'linux')(
         detail: 'The SSH alias did not report the selected sandbox UUID.'
       }
     ])
+  }
+)
+
+it.skipIf(process.platform !== 'linux')(
+  'observes an existing preparation lock without modifying it',
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'willy-probe-lock-'))
+    const lock = join(dir, 'provision.lock')
+    writeFileSync(lock, 'earlier preparation')
+    try {
+      const script = sandboxEnvironmentProbe('uuid', dir, []).replaceAll(
+        '$HOME/.local/state/willy-sbx/provision.lock',
+        lock
+      )
+      const result = await runProcess({
+        program: '/bin/bash',
+        args: ['-s'],
+        input: `exec 8<${quotePosixShell(lock)}\nflock -n 8 || exit 1\n${script}`,
+        env: { ...process.env, SANDBOX_ID: 'uuid' },
+        timeoutMs: 5_000
+      })
+      expect(result.code).toBe(0)
+      const checks = parseSandboxEnvironmentProbe(result.stdout, [])
+      expect(checks).toContainEqual(expect.objectContaining({ id: 'preparation', status: 'error' }))
+      expect(checks.some((check) => check.id === 'node')).toBe(false)
+      expect(readdirSync(dir)).toEqual(['provision.lock'])
+      expect(readFileSync(lock, 'utf8')).toBe('earlier preparation')
+      const retry = await runProcess({
+        program: '/bin/bash',
+        args: ['-s'],
+        input: script,
+        env: { ...process.env, SANDBOX_ID: 'uuid' },
+        timeoutMs: 60_000
+      })
+      expect(retry.code).toBe(0)
+      expect(parseSandboxEnvironmentProbe(retry.stdout, [])).toContainEqual(
+        expect.objectContaining({ id: 'preparation', status: 'ok' })
+      )
+      expect(readFileSync(lock, 'utf8')).toBe('earlier preparation')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   }
 )

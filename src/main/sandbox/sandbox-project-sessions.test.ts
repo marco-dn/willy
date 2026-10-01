@@ -3,7 +3,16 @@ import type { Project } from '../../shared/project-types'
 import type { Repo } from '../../shared/repo-types'
 import type { SshRemotePtyLease } from '../../shared/ssh-types'
 import { assertSandboxProjectSessionsClosed } from './sandbox-project-sessions'
-const { listProcesses } = vi.hoisted(() => ({ listProcesses: vi.fn() }))
+const { listProcesses, removed, connectionState } = vi.hoisted(() => ({
+  listProcesses: vi.fn(),
+  removed: vi.fn(),
+  connectionState: vi.fn()
+}))
+vi.mock('./sandbox-lifecycle-guard', () => ({ isSandboxSshTargetConfirmedRemoved: removed }))
+vi.mock('../ssh/ssh-target-registry', () => ({
+  listRegisteredSshTargets: () => [{ id: 'sandbox', label: 'Old sandbox', host: 'old.sbx' }],
+  getRegisteredSshState: connectionState
+}))
 vi.mock('../ipc/pty/provider/registry', () => ({ getProvider: () => ({ listProcesses }) }))
 vi.mock('../native-chat/agent-session-wire/structured-agent-session-registry', () => ({
   getStructuredAgentSessionHost: () => null
@@ -38,6 +47,8 @@ function store(leases: SshRemotePtyLease[] = []) {
 }
 beforeEach(() => {
   listProcesses.mockReset().mockResolvedValue([])
+  removed.mockReset().mockResolvedValue(false)
+  connectionState.mockReset().mockReturnValue(undefined)
 })
 describe('sandbox project session preflight', () => {
   it('refuses linking while a local project terminal remains', async () => {
@@ -139,4 +150,36 @@ describe('sandbox project session preflight', () => {
       )
     ).resolves.toBeUndefined()
   })
+})
+
+it('allows linking from the confirmed removed sandbox without querying its old leases', async () => {
+  removed.mockResolvedValue(true)
+  const lease: SshRemotePtyLease = {
+    targetId: 'sandbox',
+    ptyId: 'old',
+    worktreeId: 'remote',
+    state: 'expired',
+    createdAt: 1,
+    updatedAt: 1
+  }
+  await expect(
+    assertSandboxProjectSessionsClosed(store([lease]), project, 'ssh:new-sandbox', 'link')
+  ).resolves.toBeUndefined()
+  expect(listProcesses).toHaveBeenCalledOnce()
+  expect(lease.state).toBe('expired')
+})
+it('does not ignore sessions on a currently connected host', async () => {
+  connectionState.mockReturnValue({ status: 'connected' })
+  removed.mockResolvedValue(true)
+  listProcesses.mockRejectedValue(new Error('transport lost'))
+  await expect(
+    assertSandboxProjectSessionsClosed(store(), project, 'ssh:sandbox', 'unlink')
+  ).rejects.toThrow('Old sandbox (old.sbx; sandbox)')
+  expect(removed).not.toHaveBeenCalled()
+})
+it('names the old host when removal cannot be confirmed', async () => {
+  removed.mockRejectedValue(new Error('sbx unavailable'))
+  await expect(
+    assertSandboxProjectSessionsClosed(store(), project, 'ssh:sandbox', 'unlink')
+  ).rejects.toThrow('Old sandbox (old.sbx; sandbox)')
 })

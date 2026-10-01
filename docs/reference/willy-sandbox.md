@@ -5,10 +5,21 @@ its login if required, and start its local daemon outside Willy. OpenSSH must be
 the host. The Linux shell template needs `sudo` without a password, `apt-get` and
 `flock`. Willy does not provision sandboxes on remote SSH hosts or in the cloud.
 
+## Choose a workflow
+
+| Starting point | Actions | Changes made |
+| --- | --- | --- |
+| New sandbox | New sandbox → submit creation form | Creates the sandbox and installs the required base and selected optional tools. |
+| Sandbox created outside Willy | External → expand → Manage in Willy → choose mount if needed | Saves a Willy registration only. Leaves execution state, tools, SSH and network rules unchanged. |
+| Imported sandbox | Start explicitly if stopped → Verify environment | Checks identity, SSH, base tools and relay compatibility; saves the result and, on success, registers or reuses an SSH target. |
+| Verified environment | Connect SSH → Projects → Link project | Establishes the execution connection, potentially deploys the relay, and performs the backend project checks. |
+| Missing prerequisites | Prepare environment → review tools → Start provisioning | Explicitly configures SSH and installs the base and selected tools, with temporary network access and cleanup. |
+
 ## Sandbox list and details
 
 Settings → Sandbox shows one catalog combining the sbx inventory with saved Willy
-records by UUID. Each row separates observed execution state from preparation status.
+records by UUID. **Managed by Willy** appears first; **External** contains sandboxes
+not yet registered. Each row separates observed execution state from preparation status.
 Expand a row in the same list for lifecycle controls, projects and network settings; tool versions
 and recent logs are expandable. Diagnostics contains service information, not another
 sandbox list. A service error reports unknown state rather than removal.
@@ -36,10 +47,18 @@ without configuring or connecting SSH.
 ## Verify or prepare an imported environment
 
 **Verify environment** reads the sandbox UUID, shared folder, SSH configuration,
-base tool versions and relay compatibility. It does not run installers, modify SSH
-configuration or network rules, start the sandbox, or upload a relay. Existing SSH
+base tool versions and relay compatibility. An existing preparation lock is opened
+read-only: a held or unreadable lock blocks verification, and an absent lock is not
+created. This preserves protection after an interrupted installer.
+
+Verification does not run installers, modify SSH configuration or network rules,
+start the sandbox, or upload a relay. Existing SSH
 aliases and ProxyCommand are preserved. Missing SSH configuration is reported;
 connection failures and changed identities are distinct from missing tools.
+
+**Verification details** can be expanded and collapsed. Successful results start
+collapsed; missing prerequisites and errors start expanded. The summary and actions
+remain visible.
 
 If all checks pass, Willy records or reuses the verified SSH target. **Connect SSH**
 then establishes the normal Willy connection, which may install or update the relay;
@@ -126,7 +145,7 @@ attempted against its replacement.
 Project associations and lifecycle controls are described below. Shared files remain
 accessible to other applications on the host.
 
-## Network rules (Step 3)
+## Network rules
 
 Open **Network and credentials** on a managed sandbox. Import an external sandbox first if it is not yet managed by Willy. The editor accepts ASCII domains (or
 punycode), `*.example.com`, `**.example.com`, and an optional TCP port from 1 to 65535. URLs, arbitrary glob expressions and the universal `**` destination are
@@ -149,7 +168,7 @@ An unresolved temporary provisioning rule must be cleaned up before other change
 The backend checks sandbox identity and mount even if a stale window submits a
 request after the sandbox was replaced externally.
 
-## Optional GitHub API credentials (Step 3)
+## Optional GitHub API credentials
 
 **Open GitHub credential prompt** starts the host's `sbx secret set github
 --sandbox NAME` in a dedicated integrated PTY, with CLI debug output disabled.
@@ -185,7 +204,7 @@ optional and do not affect whether the sandbox can be provisioned or used.
 5. Close settings while the prompt is open, then reopen them. There must be no
    restored terminal transcript or credential value.
 
-## Project associations (Step 4)
+## Project associations
 
 Expand **Projects** on a ready sandbox. Select an existing Willy project and a
 relative path inside its shared folder (`.` selects the mount itself). This is an
@@ -245,7 +264,7 @@ not require unlinking its projects. A different sandbox UUID remains blocked.
 The probe does not start a stopped sandbox. Older guests without `SANDBOX_ID`
 retain the stricter boot-ID check and require relinking after a guest restart.
 
-## Start, stop and remove (Step 5)
+## Start, stop and remove
 
 Managed sandbox cards include lifecycle controls and their observed sbx state.
 Refresh re-reads the daemon: an unavailable daemon is an error, never an empty
@@ -300,9 +319,16 @@ Manual verification:
 | CLI missing or service unavailable | Install/login to sbx outside Willy. Run `sbx diagnose` in a host terminal; follow its daemon instructions, then Refresh. |
 | Tools installed, but state says Stopped | Tool installation and execution state are separate. Use Start sandbox; Stop is disabled while already stopped. |
 | SSH Connect refuses a stopped sandbox | Use Start sandbox in Sandbox settings first. Connect only establishes transport to a running sandbox. |
+| Verify environment asks to start the sandbox | Use Start sandbox, then verify again. Verification never starts a stopped guest. |
+| Verification reports missing SSH configuration or tools | Open Prepare environment, review the choices, then submit only if installation is wanted. Cancelling the form makes no changes. |
+| Verification reports an SSH error or changed identity | Restore the correct SSH alias/connection and refresh the inventory. Retry verification; do not treat this as missing tools. |
+| Local relay bundle missing | Build or reinstall Willy with the matching relay package. Guest provisioning cannot fix a missing local bundle. |
+| Verification details take up space | Click Verification details to collapse the technical results. |
+| A newly added sandbox API is not a function in development | Fully stop and restart the development app so its main process and preload match the renderer. |
 | Project absent from the selector | Add the project to Willy first, then Refresh projects. A shared folder or diagnostic sandbox entry is not itself a project. |
 | Git author identity missing | Enter name and email in the project linking form; Willy saves them in the repository. |
 | Policy denies access | Check a concrete hostname and port. Add a sandbox allow rule if permitted; organization denials require an administrator. |
+| Linking a project still refers to a sandbox removed by Willy | Completed removal plus a fresh sbx inventory confirming its UUID and name are absent allows the historical host to be ignored for this transition. Keep the sbx daemon available. History is retained; disconnected hosts, pending removal and replacement sandboxes still require verification. |
 | Unlink reports live or unverifiable sessions | Reconnect the execution host, close that project's terminals and agents, then retry. |
 | Remove unavailable after unlink | Check every project is unlinked and refresh lifecycle state. Unlink events also refresh the controls automatically. |
 | Relay socket reconnect fails, followed by “Relay started successfully” | The transport recovered. Judge availability by the final connection state. |
@@ -323,8 +349,10 @@ Project enforcement is in the updated execution backend, including requests whos
 client does not display the association. This does not make an older backend enforce
 a new constraint. Do not downgrade the host managing linked projects or let an older
 Willy version rewrite its data: older writers may discard fields they do not know.
-No new relay stream opcode is needed. Older guests without `SANDBOX_ID` use the
-boot-ID fallback described above.
+No new relay stream opcode is needed. Execution of existing linked projects retains
+the boot-ID fallback for older guests without `SANDBOX_ID`. The read-only import
+verification requires `SANDBOX_ID` and reports the environment as unavailable if the
+SSH host cannot identify itself; it does not infer identity from the alias alone.
 
 Management runs on the desktop host; provisioning targets a Linux shell guest.
 Host commands use the shared process wrappers and host path utilities. Real guest
@@ -336,6 +364,25 @@ Removed sandbox names remain reserved by their management tombstones in this
 version. Choose a new name when creating another sandbox. A missing sandbox with
 unverifiable remote sessions may require restoring contact before unlinking; the
 app does not treat disconnection as proof that those sessions exited.
+
+## Catalog and import acceptance check
+
+1. Keep one managed sandbox and one external shell sandbox available. Managed entries
+   must appear first in a separate section. Expand and collapse details in place.
+2. Import a stopped external sandbox. If it has multiple mounts, select one explicitly.
+   It must move to Managed by Willy exactly once, remain stopped and show Verification
+   required. Restart Willy and confirm the selected mount and registration persist.
+3. Verify while stopped: an actionable start instruction must appear, with no automatic
+   startup. Start explicitly and verify again. On success, collapse/expand Verification
+   details, then Connect SSH and link a project without running preparation.
+4. For an environment with missing prerequisites, inspect the failed checks and open
+   Prepare environment. Optional tools must initially be unchecked. Cancel: no changes.
+   Submit explicitly when desired and confirm progress survives closing settings.
+5. If SSH or sbx is unavailable, verification must not show Configured or enable new
+   project links. A service failure must show unknown state, not falsely mark all saved
+   sandboxes as removed. Restore the service and refresh/verify again.
+6. For an already linked project, a failed recheck must not discard its association or
+   hide Unlink project. Existing execution restrictions must remain in force.
 
 ## End-to-end acceptance check
 

@@ -20,6 +20,13 @@ if [[ "\${SANDBOX_ID:-}" != ${quotePosixShell(id)} ]]; then
 fi
 report identity ok "$SANDBOX_ID"
 if [[ -d ${quotePosixShell(mount)} ]]; then report mount ok ${quotePosixShell(mount)}; else report mount error 'Shared folder is unavailable inside the guest.'; exit 0; fi
+if [[ -e "$HOME/.local/state/willy-sbx/provision.lock" ]]; then
+  if ! { exec 9<"$HOME/.local/state/willy-sbx/provision.lock"; } || ! flock -n 9; then
+    report preparation error 'An earlier preparation is live or unverifiable. Wait for it to finish before verifying.'
+    exit 0
+  fi
+fi
+report preparation ok 'No conflicting preparation lock observed.'
 if [[ -s /etc/ssl/certs/ca-certificates.crt || -s /etc/pki/tls/certs/ca-bundle.crt ]]; then report certificates ok 'CA certificate bundle found'; else report certificates missing 'CA certificate bundle not found'; fi
 report platform ok "$(uname -s) $(uname -m)"
 if libc=$(getconf GNU_LIBC_VERSION 2>/dev/null); then report libc ok "$libc"; else report libc error 'Could not verify the guest libc.'; fi
@@ -67,13 +74,14 @@ export function parseSandboxEnvironmentProbe(
   }
   if (
     checks.some(
-      (check) => (check.id === 'identity' || check.id === 'mount') && check.status !== 'ok'
+      (check) => ['identity', 'mount', 'preparation'].includes(check.id) && check.status !== 'ok'
     )
   ) {
     return checks
   }
   for (const id of [
     'mount',
+    'preparation',
     'certificates',
     'platform',
     'libc',

@@ -37,6 +37,7 @@ it('offers explicit preparation after missing prerequisites without starting it'
   fireEvent.click(screen.getByRole('button', { name: 'Verify environment' }))
   const prepare = await screen.findByRole('button', { name: 'Prepare environment' })
   expect(verifyEnvironment).toHaveBeenCalledWith({ name: 'demo', id: 'uuid' })
+  expect(screen.getByText('Verification details').closest('details')?.open).toBe(true)
   expect(onPrepare).not.toHaveBeenCalled()
   expect(connect).not.toHaveBeenCalled()
   fireEvent.click(prepare)
@@ -69,6 +70,7 @@ it('connects SSH only after the explicit connection action', async () => {
       onPrepare={vi.fn()}
     />
   )
+  expect(screen.getByText('Verification details').closest('details')?.open).toBe(false)
   expect(connect).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Connect SSH' }))
   await waitFor(() => expect(connect).toHaveBeenCalledWith({ targetId: 'ssh-id' }))

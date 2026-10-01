@@ -1,3 +1,5 @@
+import { isSandboxSshTargetConfirmedRemoved } from './sandbox-lifecycle-guard'
+import { listRegisteredSshTargets, getRegisteredSshState } from '../ssh/ssh-target-registry'
 import type { Project } from '../../shared/project-types'
 import { getRepoExecutionHostId, parseExecutionHostId } from '../../shared/execution-host'
 import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
@@ -26,6 +28,29 @@ export async function assertSandboxProjectSessionsClosed(
   if (mode === 'unlink') {
     hosts.add(sandboxHost)
   }
+  const sshTargets = listRegisteredSshTargets()
+  const hostDescription = (targetId: string) => {
+    const target = sshTargets.find((entry) => entry.id === targetId)
+    return target ? `${target.label} (${target.configHost ?? target.host}; ${targetId})` : targetId
+  }
+  const unverifiable = (targetId: string) =>
+    `Project SSH sessions on ${hostDescription(targetId)} are unverifiable. Reconnect this host in Settings → SSH, close the project's sessions, then retry.`
+  for (const hostId of hosts) {
+    const host = parseExecutionHostId(hostId)
+    if (host?.kind !== 'ssh' || getRegisteredSshState(host.targetId)?.status === 'connected') {
+      continue
+    }
+    const target = sshTargets.find((entry) => entry.id === host.targetId)
+    try {
+      if (target && (await isSandboxSshTargetConfirmedRemoved(target))) {
+        hosts.delete(hostId)
+      }
+    } catch {
+      throw new Error(
+        `Project SSH sessions on ${hostDescription(host.targetId)} are unverifiable. Sandbox removal could not be checked. Restore the local sbx service and retry.`
+      )
+    }
+  }
   const unresolvedLeases = store
     .getSshRemotePtyLeases()
     .filter(
@@ -43,13 +68,13 @@ export async function assertSandboxProjectSessionsClosed(
     try {
       verdict = await verifyUnstoppedPtys(ids, getProvider(targetId), 15_000)
     } catch {
-      throw new Error('Project SSH sessions are unverifiable. Reconnect their host and retry.')
+      throw new Error(unverifiable(targetId))
     }
     if (verdict.status !== 'exited') {
       throw new Error(
         verdict.status === 'live'
-          ? `Close the project SSH terminals before unlinking: ${verdict.ptyIds.join(', ')}`
-          : 'Project SSH sessions are unverifiable. Reconnect their host and retry.'
+          ? `Close the project SSH terminals on ${hostDescription(targetId)} before ${mode === 'link' ? 'linking' : 'unlinking'}: ${verdict.ptyIds.join(', ')}`
+          : unverifiable(targetId)
       )
     }
   }
@@ -79,7 +104,7 @@ export async function assertSandboxProjectSessionsClosed(
       })
     } catch {
       throw new Error(
-        `Project sessions on ${hostId} are unverifiable. Reconnect the host and close its sessions before continuing.`
+        `Project sessions on ${host.kind === 'ssh' ? hostDescription(host.targetId) : hostId} are unverifiable. Reconnect the host and close its sessions before continuing.`
       )
     }
     if (

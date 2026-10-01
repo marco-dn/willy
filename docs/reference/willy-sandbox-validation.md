@@ -78,3 +78,59 @@ Automated hidden-renderer validation remains unperformed. Live GitLab, older-cli
 and native Windows/macOS checks remain outstanding as listed above. Use the
 [end-to-end acceptance check](willy-sandbox.md#end-to-end-acceptance-check) when
 repeating the manual flow.
+
+## Catalog, import and verification regression pass
+
+Following step 3 commit `63f5883cf9`, the updated targeted sandbox suite passed
+**243 tests across 34 files**, with one worker and no file parallelism.
+The run includes the sandbox services, IPC inspection, settings components and
+UUID catalog reconciliation. Component tests use happy-dom, not Electron.
+
+Backend, renderer and CLI TypeScript checks passed, run sequentially. Backend and
+renderer checks were repeated after the final preparation-lock and management-state
+corrections. Changed-lines code quality, casting, focused plugins, React Doctor,
+design-system and SAFETY scans passed. The type-aware oxlint scan was not run;
+TypeScript checks are separate evidence. Translation-key parity, local documentation
+links and `git diff --check` also passed.
+
+| Contract | Evidence |
+| --- | --- |
+| One catalog entry per UUID | Merge, same-name replacement, incomplete creation and unavailable-service fixtures in `sandbox-catalog.test.ts`; grouping and lifecycle refresh in component tests. |
+| Import has no provisioning side effects | Real persistence and manager operation lock with fake sbx/SSH commands; only inventory reads, duplicate import, explicit second mount and identity recheck. |
+| Verification has no implicit startup or installation | Service tests assert inventory-only sbx calls, stopped-state rejection, missing SSH configuration, missing tools and explicit target registration. |
+| Imported data survives restart | Import → verify → reopen store/manager → idempotent reimport using the real persistence and lock implementations. |
+| Failed checks cannot falsely certify a guest | Wrong SSH UUID, changed inventory/mount, daemon and SSH failures, malformed results, stop intent and failed recheck persistence. |
+| Relay compatibility is distinct from runtime startup | Platform, glibc, Node/npm and local bundle tests; connection is an explicit separate UI action. |
+| Preparation requires explicit submission | Imported optional tools unchecked, creation defaults preserved, cancellation without provisioning and selected-tool request tests. |
+| Existing project restrictions survive | Backend refuses unverified imported records and failed rechecks; existing execution policy, session protection and two-project association regressions remain included. |
+| Interrupted preparation remains protected | A real Linux file lock blocks the probe while held, permits retry after release and remains unchanged. Missing locks are not created; interrupted management state remains visible. |
+| Result details remain manageable | Success starts collapsed, missing prerequisites start expanded; both use the native details control. |
+
+The Linux shell probe is also executed against a temporary path containing spaces
+and an apostrophe. It validates identity and mount and leaves that folder empty.
+The lock test uses a separate temporary file and checks that its contents remain
+unchanged, both while held and after release.
+No live sandbox was created, imported, started, prepared or removed by this pass.
+No installer downloads, live credentials or organization policies were exercised.
+
+The guide now distinguishes **create**, **import**, **verify/connect** and explicit
+**prepare**, including the separate relay deployment step. All six locale files
+contain the same sandbox translation keys.
+
+Manual acceptance is assigned to the user as agreed. Use the
+[catalog and import checklist](willy-sandbox.md#catalog-and-import-acceptance-check).
+Native Windows/macOS, live organization policies and old-client interoperability
+remain outside this automated pass; earlier manual evidence above concerns the
+original lifecycle flow and does not claim those scenarios were tested here.
+
+### Relinking a project after removing its previous sandbox
+
+The manual pass found an expired `progetto-a` SSH lease referencing the already
+removed `willy-test-spazi` sandbox. Session preflight now consults completed removal
+records and a fresh inventory before excluding that historical host. It does not
+change stored leases or repository history. Connected hosts, pending removal,
+redirected SSH aliases, same-name replacements and failed inventory reads do not
+receive this exception. Errors name the SSH target that needs attention.
+
+The targeted backend follow-up passed **193 tests across 23 files**, including
+completed-removal, replacement, unavailable-daemon and retained-session cases.

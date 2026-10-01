@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   assertSandboxSshConnectionAllowed,
+  isSandboxSshTargetConfirmedRemoved,
   configureSandboxLifecycleGuard
 } from './sandbox-lifecycle-guard'
 import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
@@ -58,4 +59,39 @@ describe('sandbox SSH connection guard', () => {
     ).resolves.toBeUndefined()
     expect(run).not.toHaveBeenCalled()
   })
+})
+
+it('confirms completed removal only against a current readable inventory', async () => {
+  configureSandboxLifecycleGuard(() => [{ ...record, lifecycle: { desired: 'removed' } }])
+  run.mockResolvedValue(JSON.stringify({ sandboxes: [] }))
+  await expect(isSandboxSshTargetConfirmedRemoved(target)).resolves.toBe(true)
+  expect(run).toHaveBeenCalledWith(['ls', '--json'])
+  run.mockRejectedValue(new Error('daemon unavailable'))
+  await expect(isSandboxSshTargetConfirmedRemoved(target)).rejects.toThrow('daemon unavailable')
+})
+it.each(['stop', 'remove'] as const)(
+  'does not treat pending %s as completed removal',
+  async (pending) => {
+    configureSandboxLifecycleGuard(() => [
+      { ...record, lifecycle: { desired: 'removed', pending } }
+    ])
+    await expect(isSandboxSshTargetConfirmedRemoved(target)).resolves.toBe(false)
+    expect(run).not.toHaveBeenCalled()
+  }
+)
+it.each(['id', 'replacement'])('does not ignore a present or replaced sandbox: %s', async (id) => {
+  configureSandboxLifecycleGuard(() => [{ ...record, lifecycle: { desired: 'removed' } }])
+  run.mockResolvedValue(
+    JSON.stringify({
+      sandboxes: [{ id, name: 'demo', agent: 'shell', status: 'running', workspaces: ['/shared'] }]
+    })
+  )
+  await expect(isSandboxSshTargetConfirmedRemoved(target)).resolves.toBe(false)
+})
+it('does not use a tombstone for a redirected SSH target', async () => {
+  configureSandboxLifecycleGuard(() => [{ ...record, lifecycle: { desired: 'removed' } }])
+  await expect(
+    isSandboxSshTargetConfirmedRemoved({ ...target, host: 'other', configHost: 'other' })
+  ).resolves.toBe(false)
+  expect(run).not.toHaveBeenCalled()
 })
