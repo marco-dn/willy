@@ -1,4 +1,4 @@
-# Willy Sandbox: provisioning
+# Willy Sandbox
 
 Settings → Sandbox manages local Docker `sbx` shell sandboxes. Install `sbx`, complete
 its login if required, and start its local daemon outside Willy. OpenSSH must be on
@@ -44,7 +44,7 @@ matching SSH target without rewriting its settings. Before each remote stage, th
 SSH guest boot ID must match the one read through `sbx exec`; an alias pointing at
 another machine is rejected before installer commands run. Conflicting targets must be
 reviewed in SSH settings. A successful operation verifies tools, connects the SSH
-target and completes network cleanup before displaying **Ready**. This is provisioning
+target and completes network cleanup before displaying **Tools installed**. This is provisioning
 status; the separate diagnostic list shows the observed running/stopped state.
 
 ## Temporary network access
@@ -70,13 +70,13 @@ attempted against its replacement.
    explicitly. Leave only uv selected to keep the test small.
 3. Close and reopen settings during installation. The phase should still be visible
    and a second provisioning operation should be disabled.
-4. Wait for Ready, installed versions and the SSH host in SSH settings.
+4. Wait for Tools installed, installed versions and the SSH host in SSH settings.
 5. Adopt an existing shell sandbox. Its ID and mount should be preserved and no
    second sandbox created.
 6. On failure, read the phase/error, fix the prerequisite, then use Resume / configure.
-   Restarting the app during provisioning must show Interrupted, never a false Ready.
+   Restarting the app during provisioning must show Interrupted, never a false Tools installed status.
 
-Project binding, sandbox-only execution and lifecycle buttons are delivered in later implementation tasks. Shared files remain
+Project associations and lifecycle controls are described below. Shared files remain
 accessible to other applications on the host.
 
 ## Network rules (Step 3)
@@ -246,3 +246,78 @@ Manual verification:
    unlink both projects, then remove a disposable sandbox by typing its name.
 5. Check the shared folders and files on the host and verify another sandbox and
    its SSH references remain unchanged.
+
+## Troubleshooting
+
+| What you see | What to do |
+| --- | --- |
+| CLI missing or service unavailable | Install/login to sbx outside Willy. Run `sbx diagnose` in a host terminal; follow its daemon instructions, then Refresh. |
+| Tools installed, but state says Stopped | Tool installation and execution state are separate. Use Start sandbox; Stop is disabled while already stopped. |
+| SSH Connect refuses a stopped sandbox | Use Start sandbox in Sandbox settings first. Connect only establishes transport to a running sandbox. |
+| Project absent from the selector | Add the project to Willy first, then Refresh projects. A shared folder or diagnostic sandbox entry is not itself a project. |
+| Git author identity missing | Enter name and email in the project linking form; Willy saves them in the repository. |
+| Policy denies access | Check a concrete hostname and port. Add a sandbox allow rule if permitted; organization denials require an administrator. |
+| Unlink reports live or unverifiable sessions | Reconnect the execution host, close that project's terminals and agents, then retry. |
+| Remove unavailable after unlink | Check every project is unlinked and refresh lifecycle state. Unlink events also refresh the controls automatically. |
+| Relay socket reconnect fails, followed by “Relay started successfully” | The transport recovered. Judge availability by the final connection state. |
+
+The shared path is a host folder exposed inside the sandbox. **Project path inside
+the shared folder** is relative to that mount: for mount `/work/shared` and project
+`/work/shared/project-b`, enter `project-b`. This does not create a Willy project.
+
+## Compatibility and limits
+
+Sandbox associations and lifecycle fields are optional. Existing unbound projects
+retain their ordinary environment selection. Management records written before
+lifecycle controls load without a migration; interrupted network cleanup remains
+attached to its original operation. The journal rejects unsupported versions or
+invalid data rather than overwriting them.
+
+Project enforcement is in the updated execution backend, including requests whose
+client does not display the association. This does not make an older backend enforce
+a new constraint. Do not downgrade the host managing linked projects or let an older
+Willy version rewrite its data: older writers may discard fields they do not know.
+No new relay stream opcode is needed. Older guests without `SANDBOX_ID` use the
+boot-ID fallback described above.
+
+Management runs on the desktop host; provisioning targets a Linux shell guest.
+Host commands use the shared process wrappers and host path utilities. Real guest
+script tests run on Linux; native macOS and Windows lifecycle flows need separate
+validation. CPU/RAM configuration, UDP, arbitrary user scripts and provisioning on
+remote hosts are outside this feature.
+
+Removed sandbox names remain reserved by their management tombstones in this
+version. Choose a new name when creating another sandbox. A missing sandbox with
+unverifiable remote sessions may require restoring contact before unlinking; the
+app does not treat disconnection as proof that those sessions exited.
+
+## End-to-end acceptance check
+
+Use disposable projects and a new sandbox name. Keep another unbound project and
+another sandbox available as controls. Do not enter real credentials for cancellation
+checks.
+
+1. Create a sandbox with a shared folder containing spaces and only uv selected.
+   Close/reopen Settings during provisioning; progress must persist. Wait for Tools installed.
+2. Add and remove a concrete network destination. Only this sandbox's editable rules
+   should change. Check a denied destination and inspect the reason. Cancel the
+   optional GitHub credential prompt; no configured-account claim should appear.
+3. Add two projects to Willy: a GitLab repository (with Git authentication already
+   configured) and a plain folder without Git. Place them in separate mount subfolders.
+   Link both; a local session must block linking until closed.
+4. Open workspaces for both. New execution must use the sandbox. Try an old local
+   workspace and an SSH-disconnected launch: neither may fall back to the host.
+   Confirm the unbound control project still works normally.
+5. Restart Willy. Associations and tools must remain. Stop the sandbox after reviewing
+   both affected projects; SSH Connect must not restart it, even after another app
+   restart. Use Start sandbox and verify both projects can execute again.
+6. Close sessions and unlink the first project. The second must remain linked and
+   removal disabled. Unlink the second; removal should become available automatically.
+7. Remove by typing the sandbox name. Its managed card must disappear. Inspect the
+   host's shared files and the other sandbox: both must remain intact.
+8. Separately interrupt provisioning on a disposable sandbox by restarting Willy.
+   Expect Interrupted and explicit Resume. If temporary rule ownership is uncertain,
+   follow the displayed recovery instructions instead of deleting unrelated rules.
+
+For automated coverage and outstanding platform/UI checks, see
+[Sandbox validation](willy-sandbox-validation.md).

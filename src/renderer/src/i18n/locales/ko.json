@@ -66,6 +66,7 @@
       "starting": "시작 중…",
       "provision": "프로비저닝 시작",
       "ready": "준비 완료",
+      "toolsInstalled": "도구 설치 완료",
       "provisioning": "프로비저닝",
       "interrupted": "중단됨",
       "incomplete": "미완료",

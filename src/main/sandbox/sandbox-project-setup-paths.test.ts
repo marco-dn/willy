@@ -66,6 +66,17 @@ describe.skipIf(process.platform !== 'linux')(
       })
       expect(identity.stdout.trim()).toBe('sandbox-test@example.invalid')
     })
+    it('accepts two non-Git project folders within a mount containing spaces', async () => {
+      const input = await fixture()
+      await mkdir(input.project)
+      const second = { ...input, project: join(input.mount, 'second project') }
+      await mkdir(second.project)
+      for (const project of [input, second]) {
+        const result = await verify(project, 'folder')
+        expect(result.code, result.stderr).toBe(0)
+        expect(parseSandboxProjectSetup(result.stdout).projectPath).toBe(project.project)
+      }
+    })
     it('rejects a Git directory outside the mount', async () => {
       const input = await fixture()
       expect(

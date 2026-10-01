@@ -20,7 +20,7 @@ export function SandboxProvisioningCard({
   const [accessOpen, setAccessOpen] = useState(false)
   const status =
     record.status === 'ready'
-      ? translate('settings.sandbox.ready', 'Ready')
+      ? translate('settings.sandbox.toolsInstalled', 'Tools installed')
       : record.status === 'provisioning'
         ? translate('settings.sandbox.provisioning', 'Provisioning')
         : record.status === 'interrupted'
@@ -33,6 +33,12 @@ export function SandboxProvisioningCard({
         <Badge variant="secondary">{status}</Badge>
       </div>
       <p className="break-all font-mono text-xs">{record.mountPath}</p>
+      {record.sandboxId ? (
+        <SandboxLifecyclePanel
+          target={{ name: record.name, id: record.sandboxId }}
+          disabled={disabled}
+        />
+      ) : null}
       {record.status === 'provisioning' ? (
         <p role="status" className="text-sm text-muted-foreground">
           {translate('settings.sandbox.phase', 'Phase: {{phase}}', {
@@ -69,10 +75,6 @@ export function SandboxProvisioningCard({
       ) : null}
       {record.sandboxId ? (
         <>
-          <SandboxLifecyclePanel
-            target={{ name: record.name, id: record.sandboxId }}
-            disabled={disabled}
-          />
           <Button
             variant="outline"
             size="sm"

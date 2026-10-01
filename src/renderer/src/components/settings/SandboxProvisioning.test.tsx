@@ -6,6 +6,7 @@ import { SandboxProvisioning } from './SandboxProvisioning'
 
 const listManaged = vi.fn<() => Promise<ManagedSandbox[]>>()
 const provision = vi.fn()
+const lifecycleSnapshot = vi.fn()
 const record: ManagedSandbox = {
   name: 'demo',
   mountPath: '/work/with spaces',
@@ -21,12 +22,14 @@ const record: ManagedSandbox = {
 beforeEach(() => {
   listManaged.mockReset().mockResolvedValue([])
   provision.mockReset().mockResolvedValue(record)
+  lifecycleSnapshot.mockReset().mockResolvedValue({ state: 'running', projects: [] })
   vi.stubGlobal('api', {
     sandboxes: {
       listManaged,
       provision,
-      lifecycleSnapshot: vi.fn().mockResolvedValue({ state: 'running', projects: [] })
+      lifecycleSnapshot
     },
+    projects: { list: vi.fn().mockResolvedValue([]) },
     repos: { pickFolder: vi.fn().mockResolvedValue('/work/chosen'), onChanged: () => () => {} }
   })
 })
@@ -35,6 +38,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 describe('sandbox provisioning UI', () => {
+  it('distinguishes installed tools from a stopped sandbox before the version output', async () => {
+    listManaged.mockResolvedValue([{ ...record, status: 'ready', versions: ['uv 0.9.26'] }])
+    lifecycleSnapshot.mockResolvedValue({ state: 'stopped', projects: [] })
+    render(<SandboxProvisioning available sandboxes={[]} />)
+    expect(await screen.findByText('Tools installed')).toBeTruthy()
+    const stopped = await screen.findByText('Stopped')
+    expect(screen.queryByText('Ready')).toBeNull()
+    expect(
+      stopped.compareDocumentPosition(screen.getByText('uv 0.9.26')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Stop sandbox' }).hasAttribute('disabled')).toBe(true)
+  })
   it('defaults to all optional tools and sends the explicit folder creation choice', async () => {
     render(<SandboxProvisioning available sandboxes={[]} />)
     await waitFor(() =>

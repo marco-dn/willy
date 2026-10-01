@@ -18,22 +18,29 @@ export function SandboxPane(): React.JSX.Element {
   useTranslation()
   const [state, setState] = useState<InspectionState>({ status: 'loading' })
   const inFlight = useRef(false)
+  const refreshRequested = useRef(false)
   const mounted = useMountedRef()
   const refresh = useCallback(async () => {
+    refreshRequested.current = true
     if (inFlight.current) {
       return
     }
     inFlight.current = true
     setState({ status: 'loading' })
     try {
-      const inspection = await window.api.sandboxes.inspect()
-      if (mounted.current) {
-        setState({ status: 'loaded', inspection })
-      }
-    } catch {
-      if (mounted.current) {
-        setState({ status: 'failed' })
-      }
+      do {
+        refreshRequested.current = false
+        try {
+          const inspection = await window.api.sandboxes.inspect()
+          if (mounted.current && !refreshRequested.current) {
+            setState({ status: 'loaded', inspection })
+          }
+        } catch {
+          if (mounted.current && !refreshRequested.current) {
+            setState({ status: 'failed' })
+          }
+        }
+      } while (mounted.current && refreshRequested.current)
     } finally {
       inFlight.current = false
     }
@@ -41,6 +48,7 @@ export function SandboxPane(): React.JSX.Element {
 
   useEffect(() => {
     void refresh()
+    return window.api.repos.onChanged(() => void refresh())
   }, [refresh])
 
   return (

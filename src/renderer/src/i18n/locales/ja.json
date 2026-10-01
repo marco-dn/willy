@@ -66,6 +66,7 @@
       "starting": "開始中…",
       "provision": "プロビジョニングを開始",
       "ready": "準備完了",
+      "toolsInstalled": "ツールのインストール完了",
       "provisioning": "プロビジョニング",
       "interrupted": "中断",
       "incomplete": "未完了",

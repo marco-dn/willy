@@ -187,6 +187,7 @@
       "create": "Create sandbox",
       "adopt": "Adopt {{name}}",
       "ready": "Ready",
+      "toolsInstalled": "Tools installed",
       "interrupted": "Interrupted",
       "incomplete": "Incomplete",
       "phase": "Phase: {{phase}}",

@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SandboxInspection } from '../../../../shared/sandbox-types'
 import { SandboxPane } from './SandboxPane'
 
 const inspect = vi.fn<() => Promise<SandboxInspection>>()
+let notifyReposChanged = () => {}
 const ready: SandboxInspection = {
   status: 'ready',
   cliPath: '/tools/sbx',
@@ -24,7 +25,17 @@ const ready: SandboxInspection = {
 
 beforeEach(() => {
   inspect.mockReset()
-  vi.stubGlobal('api', { sandboxes: { inspect, listManaged: vi.fn().mockResolvedValue([]) } })
+  vi.stubGlobal('api', {
+    sandboxes: { inspect, listManaged: vi.fn().mockResolvedValue([]) },
+    repos: {
+      onChanged: (callback: () => void) => {
+        notifyReposChanged = callback
+        return () => {
+          notifyReposChanged = () => {}
+        }
+      }
+    }
+  })
 })
 afterEach(() => {
   cleanup()
@@ -40,6 +51,25 @@ describe('SandboxPane', () => {
     expect(screen.getByText('Running')).toBeTruthy()
     expect(screen.getByText('sbx CLI: v0.45.1')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()
+  })
+
+  it('refreshes diagnostics after lifecycle changes without dropping an in-flight update', async () => {
+    inspect.mockResolvedValueOnce(ready)
+    render(<SandboxPane />)
+    await screen.findByText('Running')
+    const stopping = Promise.withResolvers<SandboxInspection>()
+    inspect.mockReturnValueOnce(stopping.promise).mockResolvedValueOnce({
+      ...ready,
+      sandboxes: ready.sandboxes.map((sandbox) => ({ ...sandbox, status: 'stopped' }))
+    })
+    act(() => notifyReposChanged())
+    act(() => notifyReposChanged())
+    await act(async () => {
+      stopping.resolve(ready)
+    })
+    expect(await screen.findByText('Stopped')).toBeTruthy()
+    expect(screen.queryByText('Running')).toBeNull()
+    expect(inspect).toHaveBeenCalledTimes(3)
   })
 
   it('shows an empty state only after a successful inventory', async () => {

@@ -157,7 +157,13 @@ export function SandboxLifecyclePanel({
         <Button
           variant="outline"
           size="sm"
-          disabled={disabled || busy || !snapshot || snapshot.state === 'missing'}
+          disabled={
+            disabled ||
+            busy ||
+            !snapshot ||
+            snapshot.state === 'missing' ||
+            snapshot.state === 'stopped'
+          }
           onClick={() =>
             void perform(async () => {
               await refresh()

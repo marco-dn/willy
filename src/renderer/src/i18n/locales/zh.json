@@ -66,6 +66,7 @@
       "starting": "正在启动…",
       "provision": "开始配置",
       "ready": "就绪",
+      "toolsInstalled": "工具已安装",
       "provisioning": "配置中",
       "interrupted": "已中断",
       "incomplete": "未完成",
