@@ -90,7 +90,7 @@ export function SandboxPane(): React.JSX.Element {
       <p className="text-xs text-muted-foreground">
         {translate(
           'settings.sandbox.provisioningLimit',
-          'Sandbox start, stop and removal controls are not available yet.'
+          'Manage lifecycle controls below for sandboxes provisioned or adopted by Willy.'
         )}
       </p>
     </div>

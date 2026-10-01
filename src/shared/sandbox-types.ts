@@ -1,3 +1,4 @@
+import type { SandboxLifecycleRequest, SandboxLifecycleSnapshot } from './sandbox-lifecycle-types'
 import type { SandboxProjectLinkRequest } from './sandbox-project-types'
 import type {
   SandboxTarget,
@@ -32,6 +33,8 @@ export type SandboxInspection = {
 )
 
 export type SandboxesApi = {
+  lifecycleSnapshot: (target: SandboxTarget) => Promise<SandboxLifecycleSnapshot>
+  lifecycle: (request: SandboxLifecycleRequest) => Promise<void>
   linkProject: (request: SandboxProjectLinkRequest) => Promise<void>
   unlinkProject: (projectId: string) => Promise<void>
   policy: (request: {

@@ -17,7 +17,7 @@ export async function createSandboxCommand(): Promise<SandboxCommand> {
     const result = await runProcess({
       program,
       args,
-      timeoutMs: args[0] === 'create' || args[0] === 'exec' ? 120_000 : 15_000,
+      timeoutMs: ['create', 'exec', 'stop', 'rm'].includes(args[0]) ? 120_000 : 15_000,
       maxOutputBytes: 1024 * 1024
     })
     if (

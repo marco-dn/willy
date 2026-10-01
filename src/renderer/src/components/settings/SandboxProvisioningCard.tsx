@@ -1,3 +1,4 @@
+import { SandboxLifecyclePanel } from './SandboxLifecyclePanel'
 import { SandboxProjectsPanel } from './SandboxProjectsPanel'
 import { useState } from 'react'
 import { SandboxAccessPanel } from './SandboxAccessPanel'
@@ -68,6 +69,10 @@ export function SandboxProvisioningCard({
       ) : null}
       {record.sandboxId ? (
         <>
+          <SandboxLifecyclePanel
+            target={{ name: record.name, id: record.sandboxId }}
+            disabled={disabled}
+          />
           <Button
             variant="outline"
             size="sm"

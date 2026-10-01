@@ -1,3 +1,4 @@
+import { assertSandboxLifecycleAllowsExecution } from './sandbox-lifecycle-guard'
 import type { Repo } from '../../shared/repo-types'
 import { verifySandboxSshIdentity } from './sandbox-ssh-identity'
 export { verifySandboxSshIdentity } from './sandbox-ssh-identity'
@@ -36,6 +37,7 @@ export async function verifySandboxExecutionAvailable(
   binding: SandboxProjectBinding,
   target?: SandboxExecutionTarget
 ): Promise<void> {
+  assertSandboxLifecycleAllowsExecution(binding.sandboxId)
   inventory ??= readInventory().finally(() => {
     inventory = undefined
   })

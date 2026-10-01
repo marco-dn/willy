@@ -21,6 +21,13 @@ export const provisionRequestSchema = z
   })
   .strict()
 const recordSchema = z.object({
+  lifecycle: z
+    .object({
+      desired: z.enum(['running', 'stopped', 'removed']),
+      pending: z.enum(['start', 'stop', 'remove']).optional(),
+      error: z.string().optional()
+    })
+    .optional(),
   name,
   mountPath: z.string(),
   sandboxId: z.string().optional(),

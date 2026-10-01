@@ -1,3 +1,8 @@
+import { listRegisteredSshTargets } from '../ssh/ssh-target-registry'
+import { SandboxLifecycleService } from '../sandbox/sandbox-lifecycle-service'
+import { configureSandboxLifecycleGuard } from '../sandbox/sandbox-lifecycle-guard'
+import { disconnectRegisteredSshTarget } from './ssh-session-teardown'
+import { connectSandboxSshTarget } from '../sandbox/sandbox-ssh-target'
 import { addRemoteRepoFromPath } from './repos/remote-repo-registration'
 import type { Store } from '../persistence'
 import type { BrowserWindow } from 'electron'
@@ -18,18 +23,21 @@ import type { SandboxInspection } from '../../shared/sandbox-types'
 
 let inspectionInFlight: Promise<SandboxInspection> | null = null
 
+let records: SandboxProvisioningStore | undefined
+function provisioningRecords(): SandboxProvisioningStore {
+  records ??= new SandboxProvisioningStore(join(app.getPath('userData'), 'willy-sandboxes.json'))
+  return records
+}
+
 let manager: SandboxProvisioningManager | undefined
 function provisioningManager(): SandboxProvisioningManager {
-  manager ??= new SandboxProvisioningManager(
-    new SandboxProvisioningStore(join(app.getPath('userData'), 'willy-sandboxes.json')),
-    {
-      ...defaultSandboxCommands,
-      registerTarget: async (alias, previousId) =>
-        (await import('../sandbox/sandbox-ssh-target')).registerSandboxSshTarget(alias, previousId),
-      connectTarget: async (id) =>
-        (await import('../sandbox/sandbox-ssh-target')).connectSandboxSshTarget(id)
-    }
-  )
+  manager ??= new SandboxProvisioningManager(provisioningRecords(), {
+    ...defaultSandboxCommands,
+    registerTarget: async (alias, previousId) =>
+      (await import('../sandbox/sandbox-ssh-target')).registerSandboxSshTarget(alias, previousId),
+    connectTarget: async (id) =>
+      (await import('../sandbox/sandbox-ssh-target')).connectSandboxSshTarget(id)
+  })
   return manager
 }
 
@@ -40,6 +48,31 @@ export async function recoverSandboxProvisioning(): Promise<void> {
 export function registerSandboxHandlers(store?: Store, mainWindow?: BrowserWindow): void {
   const acquire = (target: unknown) => provisioningManager().acquireSandbox(target)
   if (store && mainWindow) {
+    configureSandboxLifecycleGuard(() => provisioningRecords().list())
+    const lifecycle = new SandboxLifecycleService({
+      records: provisioningRecords(),
+      store,
+      command: defaultSandboxCommands.command,
+      acquire: (target) => provisioningManager().acquireSandbox(target, { skipInspection: true }),
+      policy: configureSandboxExecutionStore(store),
+      targetIds: (record) => [
+        ...new Set([
+          ...(record.sshTargetId ? [record.sshTargetId] : []),
+          ...listRegisteredSshTargets()
+            .filter((target) => (target.configHost ?? target.host) === `${record.name}.sbx`)
+            .map((target) => target.id)
+        ])
+      ],
+      disconnect: disconnectRegisteredSshTarget,
+      connect: connectSandboxSshTarget,
+      changed: () => notifyReposChanged(mainWindow)
+    })
+    ipcMain.removeHandler('sandboxes:lifecycleSnapshot')
+    ipcMain.removeHandler('sandboxes:lifecycle')
+    ipcMain.handle('sandboxes:lifecycleSnapshot', (_event, target: unknown) =>
+      lifecycle.snapshot(target)
+    )
+    ipcMain.handle('sandboxes:lifecycle', (_event, request: unknown) => lifecycle.execute(request))
     const projects = new SandboxProjectService({
       store,
       policy: configureSandboxExecutionStore(store),

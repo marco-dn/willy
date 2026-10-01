@@ -1,3 +1,4 @@
+import { recoverSandboxProvisioningRecords } from './sandbox-provisioning-recovery'
 import { sandboxTargetSchema } from './sandbox-policy-response'
 import { randomUUID } from 'node:crypto'
 import { mkdir, realpath, stat } from 'node:fs/promises'
@@ -43,9 +44,19 @@ export class SandboxProvisioningManager {
     if (this.persistenceError) {
       throw this.persistenceError
     }
-    return this.store.list()
+    return this.store
+      .list()
+      .filter(
+        (record) =>
+          record.lifecycle?.desired !== 'removed' ||
+          record.lifecycle.pending ||
+          record.lifecycle.error
+      )
   }
-  async acquireSandbox(input: unknown): Promise<SandboxAccess> {
+  async acquireSandbox(
+    input: unknown,
+    options?: { skipInspection: boolean }
+  ): Promise<SandboxAccess> {
     await this.recovery
     if (this.persistenceError) {
       throw this.persistenceError
@@ -66,7 +77,15 @@ export class SandboxProvisioningManager {
         throw new Error('Resume provisioning to finish temporary network cleanup first.')
       }
       const run = await this.dependencies.command()
-      await this.verifyIdentity(record, run)
+      if (!options?.skipInspection) {
+        if (
+          record.lifecycle &&
+          (record.lifecycle.desired !== 'running' || record.lifecycle.pending)
+        ) {
+          throw new Error('Start the sandbox from Settings before performing other operations.')
+        }
+        await this.verifyIdentity(record, run)
+      }
       let released = false
       return {
         run,
@@ -136,6 +155,9 @@ export class SandboxProvisioningManager {
         throw new Error(
           'The saved sandbox is missing or has been replaced. It will not be recreated.'
         )
+      }
+      if (existing?.lifecycle && existing.lifecycle.desired !== 'running') {
+        throw new Error('Start the sandbox from Settings before resuming provisioning.')
       }
       const record: ManagedSandbox = {
         ...existing,
@@ -266,28 +288,13 @@ export class SandboxProvisioningManager {
     record.error = failure
     this.save(record)
   }
-  private async recover(): Promise<void> {
-    for (const record of this.store.list()) {
-      if (record.status !== 'provisioning' && !record.network) {
-        continue
-      }
-      record.status = 'interrupted'
-      record.error =
-        'Provisioning was interrupted. Remote work may still be running. Resume when it has finished.'
-      this.save(record)
-      if (!record.network) {
-        continue
-      }
-      try {
-        const run = await this.dependencies.command()
-        await this.verifyIdentity(record, run)
-        await cleanupProvisioningNetwork(run, record, () => this.save(record))
-      } catch (error) {
-        record.error =
-          error instanceof Error ? error.message : 'Temporary network cleanup is incomplete.'
-      }
-      this.save(record)
-    }
+  private recover(): Promise<void> {
+    return recoverSandboxProvisioningRecords({
+      list: () => this.store.list(),
+      save: (record) => this.save(record),
+      command: () => this.dependencies.command(),
+      verify: (record, run) => this.verifyIdentity(record, run)
+    })
   }
 }
 export const defaultSandboxCommands = { command: createSandboxCommand, ssh: runSandboxSsh }

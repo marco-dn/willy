@@ -174,7 +174,7 @@ may remain in the shared folder and can be selected as an existing folder on ret
 **Unlink project** requires its sandbox sessions to be closed. It clears only that
 project's constraint, preserving the SSH setup, files and other project links.
 Ordinary environment selection then returns. Unlink before removing an associated
-project environment. Sandbox start/stop/removal controls are reserved for Step 5.
+project environment. Lifecycle controls are described below.
 
 ### Manual check
 
@@ -198,3 +198,51 @@ again on a new SSH channel, so reconnecting or restarting the same sandbox does
 not require unlinking its projects. A different sandbox UUID remains blocked.
 The probe does not start a stopped sandbox. Older guests without `SANDBOX_ID`
 retain the stricter boot-ID check and require relinking after a guest restart.
+
+## Start, stop and remove (Step 5)
+
+Managed sandbox cards include lifecycle controls and their observed sbx state.
+Refresh re-reads the daemon: an unavailable daemon is an error, never an empty
+inventory or evidence that remote sessions ended.
+
+**Start sandbox** starts the existing, identity-checked sandbox and reconnects its
+SSH target. It does not create a missing replacement. **Stop sandbox** first shows
+all linked projects and other registered projects using the same SSH target.
+Confirmation interrupts sandbox sessions for all of them. Stop intent is saved
+before disconnecting SSH; reconnect attempts are refused until an explicit Start,
+including after restarting Willy. Sandboxes stopped externally must also be
+started explicitly; SSH reconnect does not start them automatically.
+
+An incomplete operation remains visible with its last error. Refresh the observed
+state and retry the desired action. Closing Settings does not cancel an operation
+in the main process. Restarting Willy does not automatically replay destructive
+operations. Project operations and lifecycle actions cannot change the same
+association concurrently; provisioning, credential prompts and lifecycle actions
+also share the sandbox operation lock.
+
+**Remove sandbox** requires all project associations to be unlinked and the sandbox
+name typed into the confirmation. Willy invokes `sbx rm --force` only for the
+selected sandbox, rechecking its UUID and mount before the command. Local sbx
+commands address sandboxes by name, so external CLI mutations should not run
+concurrently. sbx owns removal of its containers, state and managed Git worktrees;
+Willy performs no filesystem deletion of shared folders. Use a disposable sandbox
+for the removal check. Existing repository history and SSH targets remain because
+unlinked projects or other setups may reuse them. Willy retains a small management
+tombstone to prevent the old SSH target from reconnecting automatically.
+
+If a sandbox was removed externally, Refresh reports it as missing. After unlinking
+its projects, Remove can reconcile the management record without another sbx rm.
+An unverified remote session can still block unlinking; losing contact does not
+establish that its process exited.
+
+Manual verification:
+
+1. Link two projects to a running sandbox. Stop it and verify both projects appear
+   in the confirmation; cancel once and confirm that nothing changed.
+2. Confirm Stop. Both projects must refuse new execution; SSH reconnect must not
+   restart the sandbox. Restart Willy and repeat the reconnect attempt.
+3. Start the sandbox and open a terminal through its SSH environment again.
+4. Verify Remove is disabled while a project is linked. Close project sessions,
+   unlink both projects, then remove a disposable sandbox by typing its name.
+5. Check the shared folders and files on the host and verify another sandbox and
+   its SSH references remain unchanged.

@@ -120,8 +120,8 @@ export function attachMainWindowServices(
   } else {
     void hydrateLocalPtyRegistryAtBoot(store)
   }
-  registerSshHandlers(store, () => mainWindow, runtime)
   registerSandboxHandlers(store, mainWindow)
+  registerSshHandlers(store, () => mainWindow, runtime)
   void recoverSandboxProvisioning().catch((error) => {
     console.error('[sandbox] Could not recover provisioning state:', error)
   })

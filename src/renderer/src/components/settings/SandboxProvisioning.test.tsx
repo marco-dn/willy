@@ -22,8 +22,12 @@ beforeEach(() => {
   listManaged.mockReset().mockResolvedValue([])
   provision.mockReset().mockResolvedValue(record)
   vi.stubGlobal('api', {
-    sandboxes: { listManaged, provision },
-    repos: { pickFolder: vi.fn().mockResolvedValue('/work/chosen') }
+    sandboxes: {
+      listManaged,
+      provision,
+      lifecycleSnapshot: vi.fn().mockResolvedValue({ state: 'running', projects: [] })
+    },
+    repos: { pickFolder: vi.fn().mockResolvedValue('/work/chosen'), onChanged: () => () => {} }
   })
 })
 afterEach(() => {
