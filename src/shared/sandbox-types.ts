@@ -1,3 +1,4 @@
+import type { SandboxEnvironmentReport } from './sandbox-environment-types'
 import type { SandboxLifecycleRequest, SandboxLifecycleSnapshot } from './sandbox-lifecycle-types'
 import type { SandboxProjectLinkRequest } from './sandbox-project-types'
 import type {
@@ -37,6 +38,7 @@ export type SandboxInspection = {
 )
 
 export type SandboxesApi = {
+  verifyEnvironment: (target: SandboxTarget) => Promise<SandboxEnvironmentReport>
   importExisting: (request: SandboxImportRequest) => Promise<ManagedSandbox>
   lifecycleSnapshot: (target: SandboxTarget) => Promise<SandboxLifecycleSnapshot>
   lifecycle: (request: SandboxLifecycleRequest) => Promise<void>

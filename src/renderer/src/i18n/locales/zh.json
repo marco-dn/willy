@@ -153,7 +153,20 @@
       "gitIdentityNotice": "留空以使用沙箱中现有的身份信息。所选身份仅保存到此仓库。",
       "linkingProject": "正在更新项目关联…",
       "linkProject": "关联项目",
-      "projects": "项目"
+      "projects": "项目",
+      "verifyNotice": "验证会检查正在运行的沙箱，不会安装工具或配置 SSH。如果沙箱已停止，请先启动。",
+      "verifying": "正在检查环境…",
+      "prepareEnvironment": "准备环境",
+      "sshNotReady": "SSH 连接尚未就绪。请检查 SSH 设置。",
+      "connectSsh": "连接 SSH",
+      "environmentReady": "前置条件已验证。关联项目前请连接 SSH；连接时可能会安装或更新 Willy 中继。",
+      "environmentMissing": "缺少部分前置条件。请查看结果，然后手动启动环境准备。",
+      "environmentUnavailable": "无法确认此环境。请解决报告的错误后重试。",
+      "checkOk": "已验证",
+      "checkMissing": "缺失",
+      "sshConnected": "SSH 连接已完成。",
+      "prepareSshNotice": "准备过程可能会配置 SSH、安装必需的基础环境和所选工具，并临时开放网络访问。仅在提交此表单后开始。",
+      "verificationDetails": "验证详情"
     },
     "appearance": {
       "language": {

@@ -23,7 +23,10 @@ vi.mock('./sandbox-command', () => ({
   )
 }))
 
-function fixture(status: ManagedSandbox['status'] = 'ready') {
+function fixture(
+  status: ManagedSandbox['status'] = 'ready',
+  verification?: ManagedSandbox['verification']
+) {
   const repos: Repo[] = [
     {
       id: 'local',
@@ -105,6 +108,7 @@ function fixture(status: ManagedSandbox['status'] = 'ready') {
         sandboxId: 'id',
         sshTargetId: 'ssh',
         status,
+        verification,
         mountPath: '/shared',
         tools: [],
         operationId: 'op',
@@ -128,7 +132,7 @@ beforeEach(() => {
 describe('sandbox project service', () => {
   it('rejects linking an imported environment even when an SSH target is present', async () => {
     const { service, acquire, register, store } = fixture('imported')
-    await expect(service.link(request)).rejects.toThrow('Finish sandbox provisioning')
+    await expect(service.link(request)).rejects.toThrow('Verify or prepare')
     expect(acquire).not.toHaveBeenCalled()
     expect(register).not.toHaveBeenCalled()
     expect(store.getProjects()[0].sandboxBinding).toBeUndefined()
@@ -234,4 +238,16 @@ describe('sandbox project service', () => {
     await expect(service.unlink(request.projectId)).rejects.toThrow('write failed')
     expect(store.getProjects()[0].sandboxBinding?.sandboxId).toBe('id')
   })
+})
+
+it('blocks new links after a failed recheck even for a previously configured record', async () => {
+  const { service, acquire, register } = fixture('ready', {
+    checkedAt: 2,
+    outcome: 'unavailable',
+    canPrepare: false,
+    checks: []
+  })
+  await expect(service.link(request)).rejects.toThrow('Verify or prepare')
+  expect(acquire).not.toHaveBeenCalled()
+  expect(register).not.toHaveBeenCalled()
 })

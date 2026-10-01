@@ -8,17 +8,24 @@ import {
 } from '../ssh/ssh-target-registry'
 import { addRegisteredSshTarget } from '../ipc/ssh-target-crud-handlers'
 
-export async function registerSandboxSshTarget(
-  alias: string,
-  previousId?: string
-): Promise<string> {
+export class SandboxSshConfigurationError extends Error {
+  constructor(
+    readonly kind: 'missing' | 'conflict' | 'unavailable',
+    message: string
+  ) {
+    super(message)
+  }
+}
+
+export async function inspectSandboxSshTarget(alias: string, previousId?: string) {
   const store = getSshTargetRegistryStore()
   if (!store) {
-    throw new Error('SSH target registry is unavailable.')
+    throw new SandboxSshConfigurationError('unavailable', 'SSH target registry is unavailable.')
   }
   const previous = previousId ? store.getTarget(previousId) : undefined
   if (previous && (previous.configHost ?? previous.host) !== alias) {
-    throw new Error(
+    throw new SandboxSshConfigurationError(
+      'conflict',
       'The saved SSH target now points at a different alias. Restore it before resuming.'
     )
   }
@@ -26,7 +33,7 @@ export async function registerSandboxSshTarget(
     previous ?? store.listTargets().find((target) => (target.configHost ?? target.host) === alias)
   const program = findSystemSsh()
   if (!program) {
-    throw new Error('OpenSSH is unavailable.')
+    throw new SandboxSshConfigurationError('unavailable', 'OpenSSH is unavailable.')
   }
   const result = await runProcess({
     program,
@@ -35,7 +42,10 @@ export async function registerSandboxSshTarget(
     maxOutputBytes: 128 * 1024
   })
   if (result.code !== 0 || result.timedOut || result.outputTruncated) {
-    throw new Error('Could not resolve the sandbox SSH configuration.')
+    throw new SandboxSshConfigurationError(
+      'unavailable',
+      'Could not resolve the sandbox SSH configuration.'
+    )
   }
   const config = parseSshGOutput(result.stdout)
   if (existing) {
@@ -45,14 +55,30 @@ export async function registerSandboxSshTarget(
       existing.username !== config.user ||
       (existing.proxyCommand && existing.proxyCommand !== config.proxyCommand)
     ) {
-      throw new Error(
+      throw new SandboxSshConfigurationError(
+        'conflict',
         'The existing SSH target differs from the sandbox SSH configuration. Review it in SSH settings before resuming.'
       )
     }
-    return existing.id
   }
   if (!config.proxyCommand || !config.user) {
-    throw new Error('Sandbox SSH ProxyCommand or user is missing. Check sbx setup ssh.')
+    throw new SandboxSshConfigurationError(
+      'missing',
+      'Sandbox SSH ProxyCommand or user is missing. Prepare the environment to configure SSH.'
+    )
+  }
+  return { existing, config }
+}
+export async function registerSandboxSshTarget(
+  alias: string,
+  previousId?: string
+): Promise<string> {
+  const { existing, config } = await inspectSandboxSshTarget(alias, previousId)
+  if (existing) {
+    return existing.id
+  }
+  if (!config.user) {
+    throw new Error('Sandbox SSH user is missing.')
   }
   return addRegisteredSshTarget({
     label: alias,

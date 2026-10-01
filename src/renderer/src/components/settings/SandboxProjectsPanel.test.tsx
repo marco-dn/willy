@@ -160,3 +160,33 @@ describe('sandbox project controls', () => {
     expect(unlinkProject).toHaveBeenCalledWith('p')
   })
 })
+it('allows unlink while new links are disabled after failed verification', async () => {
+  list.mockResolvedValue([
+    {
+      ...project,
+      sandboxBinding: {
+        sandboxId: 'sandbox',
+        sandboxName: 'demo',
+        sshTargetId: 'ssh',
+        setupId: 'remote',
+        repoId: 'remote',
+        mountPath: '/shared',
+        projectPath: '/shared/project'
+      }
+    }
+  ])
+  render(
+    <SandboxProjectsPanel
+      record={{
+        ...record,
+        verification: { checkedAt: 2, outcome: 'unavailable', canPrepare: false, checks: [] }
+      }}
+      disabled
+    />
+  )
+  const unlink = await screen.findByRole('button', { name: 'Unlink project' })
+  expect(unlink.hasAttribute('disabled')).toBe(false)
+  expect(screen.getByRole('button', { name: 'Link project' }).hasAttribute('disabled')).toBe(true)
+  fireEvent.click(unlink)
+  await waitFor(() => expect(unlinkProject).toHaveBeenCalledWith('p'))
+})

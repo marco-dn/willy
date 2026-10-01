@@ -1,8 +1,14 @@
+import { SandboxEnvironmentService } from '../sandbox/sandbox-environment-service'
+import { checkSandboxRelayCompatibility } from '../sandbox/sandbox-relay-compatibility'
+import {
+  inspectSandboxSshTarget,
+  registerSandboxSshTarget,
+  connectSandboxSshTarget
+} from '../sandbox/sandbox-ssh-target'
 import { listRegisteredSshTargets } from '../ssh/ssh-target-registry'
 import { SandboxLifecycleService } from '../sandbox/sandbox-lifecycle-service'
 import { configureSandboxLifecycleGuard } from '../sandbox/sandbox-lifecycle-guard'
 import { disconnectRegisteredSshTarget } from './ssh-session-teardown'
-import { connectSandboxSshTarget } from '../sandbox/sandbox-ssh-target'
 import { addRemoteRepoFromPath } from './repos/remote-repo-registration'
 import type { Store } from '../persistence'
 import type { BrowserWindow } from 'electron'
@@ -107,6 +113,22 @@ export function registerSandboxHandlers(store?: Store, mainWindow?: BrowserWindo
     }
     return record
   })
+  ipcMain.removeHandler('sandboxes:verifyEnvironment')
+  ipcMain.handle('sandboxes:verifyEnvironment', (_event, target: unknown) =>
+    new SandboxEnvironmentService({
+      records: provisioningRecords(),
+      acquire: (target) => provisioningManager().acquireSandbox(target, { skipInspection: true }),
+      inspectSsh: inspectSandboxSshTarget,
+      ssh: (alias, script) => defaultSandboxCommands.ssh(alias, script, { verification: true }),
+      relay: checkSandboxRelayCompatibility,
+      registerTarget: registerSandboxSshTarget,
+      changed: () => {
+        if (mainWindow) {
+          notifyReposChanged(mainWindow)
+        }
+      }
+    }).verify(target)
+  )
   ipcMain.removeHandler('sandboxes:inspect')
   ipcMain.handle('sandboxes:inspect', () => {
     // Share probes across windows without retaining stale observations.

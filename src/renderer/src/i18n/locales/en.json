@@ -269,7 +269,20 @@
       "gitIdentityNotice": "Leave blank to use the identity already available inside the sandbox. The chosen identity is saved only for this repository.",
       "linkingProject": "Updating project association…",
       "linkProject": "Link project",
-      "projects": "Projects"
+      "projects": "Projects",
+      "verifyNotice": "Verification checks a running sandbox without installing tools or configuring SSH. Start the sandbox first if it is stopped.",
+      "verifying": "Checking environment…",
+      "prepareEnvironment": "Prepare environment",
+      "sshNotReady": "SSH connection is not ready. Check SSH settings.",
+      "connectSsh": "Connect SSH",
+      "environmentReady": "Prerequisites verified. Connect SSH before linking a project; connection may install or update the Willy relay.",
+      "environmentMissing": "Some prerequisites are missing. Review the results, then prepare the environment explicitly.",
+      "environmentUnavailable": "Verification could not confirm this environment. Resolve the reported errors and retry.",
+      "checkOk": "Verified",
+      "checkMissing": "Missing",
+      "sshConnected": "SSH connection completed.",
+      "prepareSshNotice": "Preparation can configure SSH, install the required base and selected tools, and temporarily open network access. It starts only after you submit this form.",
+      "verificationDetails": "Verification details"
     },
     "appearance": {
       "language": {

@@ -132,7 +132,7 @@ export function SandboxProjectsPanel({
         className="space-y-3"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!record.sandboxId) {
+          if (disabled || !record.sandboxId) {
             return
           }
           setUnlinkingProjectId(undefined)

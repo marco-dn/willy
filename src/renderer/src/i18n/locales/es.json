@@ -153,7 +153,20 @@
       "gitIdentityNotice": "Deja los campos vacíos para usar la identidad disponible en la sandbox. La identidad elegida se guarda solo para este repositorio.",
       "linkingProject": "Actualizando vinculación del proyecto…",
       "linkProject": "Vincular proyecto",
-      "projects": "Proyectos"
+      "projects": "Proyectos",
+      "verifyNotice": "La verificación comprueba una sandbox en ejecución sin instalar herramientas ni configurar SSH. Si está detenida, iníciala primero.",
+      "verifying": "Verificando entorno…",
+      "prepareEnvironment": "Preparar entorno",
+      "sshNotReady": "La conexión SSH no está lista. Revisa la configuración de SSH.",
+      "connectSsh": "Conectar SSH",
+      "environmentReady": "Requisitos verificados. Conecta SSH antes de vincular un proyecto; la conexión puede instalar o actualizar el relay de Willy.",
+      "environmentMissing": "Faltan algunos requisitos. Revisa los resultados y prepara el entorno de forma explícita.",
+      "environmentUnavailable": "No se pudo verificar este entorno. Resuelve los errores indicados e inténtalo de nuevo.",
+      "checkOk": "Verificado",
+      "checkMissing": "Falta",
+      "sshConnected": "Conexión SSH completada.",
+      "prepareSshNotice": "La preparación puede configurar SSH, instalar la base obligatoria y las herramientas seleccionadas y abrir temporalmente el acceso a la red. Solo comienza al enviar este formulario.",
+      "verificationDetails": "Detalles de la verificación"
     },
     "appearance": {
       "language": {

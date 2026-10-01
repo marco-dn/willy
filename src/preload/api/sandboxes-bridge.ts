@@ -3,6 +3,7 @@ import { ipcRenderer } from 'electron'
 import type { SandboxesApi } from '../../shared/sandbox-types'
 
 export const sandboxesApi = {
+  verifyEnvironment: (target) => ipcRenderer.invoke('sandboxes:verifyEnvironment', target),
   importExisting: (request) => ipcRenderer.invoke('sandboxes:import', request),
   lifecycleSnapshot: (target) => ipcRenderer.invoke('sandboxes:lifecycleSnapshot', target),
   lifecycle: (request) => ipcRenderer.invoke('sandboxes:lifecycle', request),

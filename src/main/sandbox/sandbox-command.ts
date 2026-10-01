@@ -32,7 +32,11 @@ export async function createSandboxCommand(): Promise<SandboxCommand> {
     return result.stdout
   }
 }
-export async function runSandboxSsh(alias: string, script: string): Promise<string> {
+export async function runSandboxSsh(
+  alias: string,
+  script: string,
+  options?: { verification: boolean }
+): Promise<string> {
   const program = findSystemSsh()
   if (!program) {
     throw new Error('Install an OpenSSH client before provisioning.')
@@ -60,13 +64,16 @@ export async function runSandboxSsh(alias: string, script: string): Promise<stri
       'bash -s'
     ],
     input: script,
-    timeoutMs: 30 * 60_000,
+    timeoutMs: options?.verification ? 90_000 : 30 * 60_000,
     maxOutputBytes: 128 * 1024
   })
-  if (result.timedOut || result.code !== 0) {
+  if (result.timedOut || result.code !== 0 || (options?.verification && result.outputTruncated)) {
     throw new Error(
-      `SSH provisioning incomplete${result.timedOut ? ' (timeout; remote work may still be running)' : ''}: ${result.stderr.slice(-1500)}`
+      `SSH ${options?.verification ? 'verification failed' : 'provisioning incomplete'}${result.timedOut ? ' (timeout; remote work may still be running)' : ''}: ${result.stderr.slice(-1500)}`
     )
+  }
+  if (options?.verification) {
+    return result.stdout
   }
   return `${result.outputTruncated ? '[Output truncated]\n' : ''}${result.stdout.slice(-16_000)}`
 }

@@ -1,3 +1,4 @@
+import { SandboxEnvironmentPanel } from './SandboxEnvironmentPanel'
 import { SandboxLifecyclePanel } from './SandboxLifecyclePanel'
 import { SandboxProjectsPanel } from './SandboxProjectsPanel'
 import { useState } from 'react'
@@ -45,22 +46,15 @@ export function SandboxProvisioningCard({
           <pre className="whitespace-pre-wrap text-xs">{record.versions.join('\n')}</pre>
         </details>
       ) : null}
-      {record.status === 'imported' ? (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">
-            {translate('settings.sandbox.projectsAndTools', 'Projects and tools')}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {translate(
-              'settings.sandbox.importNeedsVerification',
-              'SSH access and required tools must be verified before linking projects. Importing does not configure the environment.'
-            )}
-          </p>
-          <Button variant="outline" size="sm" disabled>
-            {translate('settings.sandbox.verifyEnvironment', 'Verify environment')}
-          </Button>
-        </div>
-      ) : (
+      {record.sandboxId ? (
+        <SandboxEnvironmentPanel
+          key={record.operationId}
+          record={record}
+          disabled={disabled}
+          onPrepare={onConfigure}
+        />
+      ) : null}
+      {record.status !== 'imported' ? (
         <>
           <details>
             <summary className="cursor-pointer text-sm">
@@ -74,13 +68,18 @@ export function SandboxProvisioningCard({
             {translate('settings.sandbox.resume', 'Resume / configure')}
           </Button>
         </>
-      )}
+      ) : null}
       {record.status === 'ready' && record.sandboxId ? (
         <details>
           <summary className="cursor-pointer text-sm">
             {translate('settings.sandbox.projects', 'Projects')}
           </summary>
-          <SandboxProjectsPanel record={record} disabled={disabled} />
+          <SandboxProjectsPanel
+            record={record}
+            disabled={
+              disabled || Boolean(record.verification && record.verification.outcome !== 'ready')
+            }
+          />
         </details>
       ) : null}
       {record.sandboxId ? (

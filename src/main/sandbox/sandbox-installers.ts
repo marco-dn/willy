@@ -51,10 +51,20 @@ export function toolInstaller(tool: SandboxTool): string {
   ${shell} "$installer"
 fi`
 }
-const baseTools = ['python3', 'git', 'curl', 'node', 'npm', 'make', 'cc', 'just', 'zsh']
+export const SANDBOX_BASE_TOOLS = [
+  'python3',
+  'git',
+  'curl',
+  'node',
+  'npm',
+  'make',
+  'cc',
+  'just',
+  'zsh'
+]
 export function verifiedSandboxVersions(output: string, tools: SandboxTool[]): string[] {
   const lines = output.split('\n')
-  return [...baseTools, ...tools].map((tool) => {
+  return [...SANDBOX_BASE_TOOLS, ...tools].map((tool) => {
     const prefix = `WILLY_TOOL ${tool} `
     const line = lines.find((line) => line.startsWith(prefix) && line.length > prefix.length)
     if (!line) {
@@ -66,7 +76,7 @@ export function verifiedSandboxVersions(output: string, tools: SandboxTool[]): s
   })
 }
 export function verificationScript(tools: SandboxTool[]): string {
-  const commands = [...baseTools, ...tools.filter((tool) => tool !== 'orca-skills')]
+  const commands = [...SANDBOX_BASE_TOOLS, ...tools.filter((tool) => tool !== 'orca-skills')]
   const verify = commands
     .map(
       (tool) => `${tool} --version >/dev/null

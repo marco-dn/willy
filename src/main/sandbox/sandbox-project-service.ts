@@ -58,8 +58,12 @@ export class SandboxProjectService {
     const managed = (await this.deps.list()).find(
       (entry) => entry.name === request.target.name && entry.sandboxId === request.target.id
     )
-    if (!managed?.sshTargetId || managed.status !== 'ready') {
-      throw new Error('Finish sandbox provisioning before linking a project.')
+    if (
+      !managed?.sshTargetId ||
+      managed.status !== 'ready' ||
+      (managed.verification && managed.verification.outcome !== 'ready')
+    ) {
+      throw new Error('Verify or prepare the sandbox environment before linking a project.')
     }
     const targetId = managed.sshTargetId
     const hostId = `ssh:${targetId}` as const

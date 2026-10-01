@@ -245,7 +245,7 @@ describe('sandbox provisioning UI', () => {
     expect(screen.queryByRole('region', { name: 'External' })).toBeNull()
     expect(
       (await screen.findByRole('button', { name: 'Verify environment' })).hasAttribute('disabled')
-    ).toBe(true)
+    ).toBe(false)
     expect(screen.queryByRole('button', { name: 'Link project' })).toBeNull()
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Start sandbox' }).hasAttribute('disabled')).toBe(

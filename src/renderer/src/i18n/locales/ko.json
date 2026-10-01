@@ -153,7 +153,20 @@
       "gitIdentityNotice": "비워 두면 샌드박스의 기존 작성자 정보를 사용합니다. 선택한 정보는 이 저장소에만 저장됩니다.",
       "linkingProject": "프로젝트 연결 업데이트 중…",
       "linkProject": "프로젝트 연결",
-      "projects": "프로젝트"
+      "projects": "프로젝트",
+      "verifyNotice": "실행 중인 샌드박스를 도구 설치나 SSH 설정 없이 확인합니다. 중지된 경우 먼저 시작하세요.",
+      "verifying": "환경 확인 중…",
+      "prepareEnvironment": "환경 준비",
+      "sshNotReady": "SSH 연결이 준비되지 않았습니다. SSH 설정을 확인하세요.",
+      "connectSsh": "SSH 연결",
+      "environmentReady": "필수 조건을 확인했습니다. 프로젝트 연결 전에 SSH를 연결하세요. 연결 시 Willy 릴레이가 설치되거나 업데이트될 수 있습니다.",
+      "environmentMissing": "일부 필수 조건이 누락되었습니다. 결과를 확인한 후 환경 준비를 직접 시작하세요.",
+      "environmentUnavailable": "이 환경을 확인할 수 없습니다. 표시된 오류를 해결하고 다시 시도하세요.",
+      "checkOk": "확인됨",
+      "checkMissing": "누락",
+      "sshConnected": "SSH 연결 완료.",
+      "prepareSshNotice": "준비 과정에서 SSH 설정, 필수 환경과 선택한 도구 설치, 임시 네트워크 접근 허용이 이루어질 수 있습니다. 이 양식을 제출한 후에만 시작됩니다.",
+      "verificationDetails": "검증 세부 정보"
     },
     "appearance": {
       "language": {

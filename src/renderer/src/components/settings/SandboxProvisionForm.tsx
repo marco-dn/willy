@@ -55,12 +55,18 @@ export function SandboxProvisionForm({
       <h3 className="text-sm font-medium">
         {create
           ? translate('settings.sandbox.newSandbox', 'New sandbox')
-          : translate('settings.sandbox.configure', 'Configure sandbox')}
+          : translate('settings.sandbox.prepareEnvironment', 'Prepare environment')}
       </h3>
       <p className="text-sm text-muted-foreground">
         {translate(
           'settings.sandbox.provisionNotice',
           'Provisioning starts the sandbox and installs the selected tools. You can close settings while it runs. Deselecting a tool does not uninstall it.'
+        )}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {translate(
+          'settings.sandbox.prepareSshNotice',
+          'Preparation can configure SSH, install the required base and selected tools, and temporarily open network access. It starts only after you submit this form.'
         )}
       </p>
       <form

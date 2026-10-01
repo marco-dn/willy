@@ -22,7 +22,11 @@ vi.mock('../ssh/ssh-target-registry', () => ({
   getRegisteredSshState: mocks.getState
 }))
 vi.mock('../ipc/ssh-target-crud-handlers', () => ({ addRegisteredSshTarget: mocks.add }))
-import { connectSandboxSshTarget, registerSandboxSshTarget } from './sandbox-ssh-target'
+import {
+  connectSandboxSshTarget,
+  inspectSandboxSshTarget,
+  registerSandboxSshTarget
+} from './sandbox-ssh-target'
 
 const target: SshTarget = {
   id: 'existing',
@@ -73,4 +77,20 @@ describe('sandbox SSH registration', () => {
     mocks.connect.mockResolvedValue({ status: 'error' })
     await expect(connectSandboxSshTarget('existing')).rejects.toThrow('not ready')
   })
+})
+
+it('inspects SSH configuration without registering or connecting', async () => {
+  const result = await inspectSandboxSshTarget('demo.sbx')
+  expect(result.config.proxyCommand).toBe(target.proxyCommand)
+  expect(mocks.add).not.toHaveBeenCalled()
+  expect(mocks.connect).not.toHaveBeenCalled()
+})
+it('reports missing configuration without repairing it', async () => {
+  mocks.run.mockResolvedValue({
+    code: 0,
+    stdout: 'hostname demo.sbx\nuser sandbox\nport 22\n',
+    stderr: ''
+  })
+  await expect(inspectSandboxSshTarget('demo.sbx')).rejects.toMatchObject({ kind: 'missing' })
+  expect(mocks.add).not.toHaveBeenCalled()
 })

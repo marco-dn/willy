@@ -1,3 +1,4 @@
+import type { SandboxEnvironmentReport } from './sandbox-environment-types'
 import type { SandboxTarget } from './sandbox-policy-types'
 import type { SandboxLifecycleState } from './sandbox-lifecycle-types'
 export const SANDBOX_TOOLS = ['uv', 'claude', 'codex', 'databricks', 'orca-skills'] as const
@@ -21,6 +22,7 @@ export type SandboxProvisionStage =
   | 'connect'
   | 'cleanup'
 export type ManagedSandbox = {
+  verification?: SandboxEnvironmentReport
   lifecycle?: SandboxLifecycleState
   name: string
   mountPath: string

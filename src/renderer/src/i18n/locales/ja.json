@@ -153,7 +153,20 @@
       "gitIdentityNotice": "空欄の場合はサンドボックス内の既存の情報を使用します。選択した情報は、このリポジトリにのみ保存されます。",
       "linkingProject": "プロジェクトの関連付けを更新中…",
       "linkProject": "プロジェクトをリンク",
-      "projects": "プロジェクト"
+      "projects": "プロジェクト",
+      "verifyNotice": "実行中のサンドボックスを、ツールのインストールや SSH の設定をせずに確認します。停止中の場合は先に起動してください。",
+      "verifying": "環境を確認中…",
+      "prepareEnvironment": "環境を準備",
+      "sshNotReady": "SSH 接続の準備ができていません。SSH 設定を確認してください。",
+      "connectSsh": "SSH に接続",
+      "environmentReady": "前提条件を確認しました。プロジェクトをリンクする前に SSH に接続してください。接続時に Willy リレーがインストールまたは更新される場合があります。",
+      "environmentMissing": "不足している前提条件があります。結果を確認し、環境の準備を明示的に開始してください。",
+      "environmentUnavailable": "この環境を確認できませんでした。表示されたエラーを解決して再試行してください。",
+      "checkOk": "確認済み",
+      "checkMissing": "不足",
+      "sshConnected": "SSH 接続が完了しました。",
+      "prepareSshNotice": "準備では SSH の設定、必須環境と選択したツールのインストール、一時的なネットワークアクセスの許可を行う場合があります。このフォームを送信した後にのみ開始します。",
+      "verificationDetails": "検証の詳細"
     },
     "appearance": {
       "language": {

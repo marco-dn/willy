@@ -21,6 +21,22 @@ export const provisionRequestSchema = z
   })
   .strict()
 const recordSchema = z.object({
+  verification: z
+    .object({
+      checkedAt: z.number(),
+      outcome: z.enum(['ready', 'needs-preparation', 'unavailable']),
+      canPrepare: z.boolean(),
+      checks: z
+        .array(
+          z.object({
+            id: z.string().max(64),
+            status: z.enum(['ok', 'missing', 'error', 'blocked']),
+            detail: z.string().max(2000)
+          })
+        )
+        .max(40)
+    })
+    .optional(),
   lifecycle: z
     .object({
       desired: z.enum(['running', 'stopped', 'removed']),

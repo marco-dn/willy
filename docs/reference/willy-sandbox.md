@@ -28,10 +28,32 @@ the existing record. Conflicting names or identities are rejected without overwr
 
 Imported sandboxes show **Verification required** and support Start, Stop and Remove.
 The registration survives app restart. Project linking remains blocked in the backend
-until preparation is verified. In this implementation step, **Verify environment** is
-shown but disabled; the verification and explicit preparation flow follows separately.
+until the environment is verified. **Verify environment** requires an already running
+sandbox; use **Start sandbox** first if stopped.
 A Start on an imported sandbox without a registered SSH target starts the sandbox
 without configuring or connecting SSH.
+
+## Verify or prepare an imported environment
+
+**Verify environment** reads the sandbox UUID, shared folder, SSH configuration,
+base tool versions and relay compatibility. It does not run installers, modify SSH
+configuration or network rules, start the sandbox, or upload a relay. Existing SSH
+aliases and ProxyCommand are preserved. Missing SSH configuration is reported;
+connection failures and changed identities are distinct from missing tools.
+
+If all checks pass, Willy records or reuses the verified SSH target. **Connect SSH**
+then establishes the normal Willy connection, which may install or update the relay;
+actual relay startup is checked at this point. Connect before linking a project.
+The backend still checks connection, identity, mount and active sessions when linking.
+A failed verification never enables new project links. Existing linked projects retain
+their execution restrictions.
+
+For missing prerequisites, **Prepare environment** opens a form explaining the
+mandatory base, SSH configuration and temporary network changes. Nothing is installed
+until the form is submitted. Imported environments start with optional tools unchecked;
+new sandboxes retain the default selections. Closing the form without submitting
+makes no changes. Verification results persist across app restarts. If SSH or the
+service is unavailable, resolve the reported error and verify again.
 
 ## Create a sandbox
 

@@ -169,6 +169,7 @@ export class SandboxProvisioningManager {
       }
       const record: ManagedSandbox = {
         ...existing,
+        verification: undefined,
         name: request.name,
         mountPath,
         sandboxId: existing?.sandboxId ?? found?.id,
@@ -183,9 +184,7 @@ export class SandboxProvisioningManager {
       }
       this.store.save(record)
       void this.execute(record, run)
-        .finally(() => {
-          release()
-        })
+        .finally(release)
         .catch((error: unknown) => {
           this.persistenceError = new Error(
             `Could not save sandbox progress. Restart Willy after fixing storage: ${String(error)}`
