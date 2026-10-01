@@ -134,3 +134,33 @@ receive this exception. Errors name the SSH target that needs attention.
 
 The targeted backend follow-up passed **193 tests across 23 files**, including
 completed-removal, replacement, unavailable-daemon and retained-session cases.
+
+### Electron UI automation
+
+`tests/e2e/settings-sandbox.spec.ts` exercises the real Electron renderer and preload
+through Playwright CDP using the existing isolated-profile fixture. Sandbox IPC
+handlers in that disposable app return controlled data; these tests do not exercise
+live sbx, SSH, installers, policy changes or persistence after restart.
+
+The three scenarios cover:
+
+- Managed entries before external entries, UUID deduplication, inline expansion,
+  stopped lifecycle buttons, and separate creation navigation with return to the list.
+- External import through the actual preload API, movement into the managed group,
+  explicit startup button transitions, and collapsible verification results.
+- Unavailable service diagnostics, retained managed entries, disabled creation and
+  refresh without falsely showing an empty inventory or removed sandbox.
+
+Run from the repository root:
+
+```sh
+ORCA_BACKGROUND_LAUNCH=1 pnpm run test:e2e tests/e2e/settings-sandbox.spec.ts --workers=1
+```
+
+The default command rebuilds in E2E mode first. After that build, `SKIP_BUILD=1`
+can be used for test-only edits. Keep background launch enabled: all windows stay
+hidden and screenshots are captured through CDP. A successful import verification
+screenshot is attached to the test result. The local validation uses one worker,
+one CPU core and low process priority. The Electron skill is now installed; the
+repository's Playwright and hidden-window requirements take precedence over its
+agent-browser examples.
