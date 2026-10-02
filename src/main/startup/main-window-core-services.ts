@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { registerCoreHandlers } from '../ipc/register-core-handlers/register-core-handlers'
 import { attachMainWindowServices } from '../window/attach-main-window-services'
+import { registerSandboxHandlers } from '../ipc/sandboxes'
 import { initTccPromptNotice } from '../macos-tcc-prompt-notice'
 import { resolveUpdateInstallMode } from '../updater'
 import { mainProcessState as state } from './main-process-state'
@@ -135,6 +136,8 @@ export function attachMainWindowCoreServices(
       onWorktreeLifecycle: emitPluginWorktreeLifecycle
     }
   )
+  // Same synchronous tick as attach, so the sandbox execution policy is set before any async work runs.
+  registerSandboxHandlers(store, window)
   // Why: attach the durable renderer pull now, but launch the diagnostic process after first paint.
   initTccPromptNotice(window, { deferWatchUntilReadyToShow: true })
   rateLimits.attach(window)

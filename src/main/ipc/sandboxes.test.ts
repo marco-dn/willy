@@ -1,11 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SandboxInspection } from '../../shared/sandbox-types'
 
-const mocks = vi.hoisted(() => ({ handle: vi.fn(), removeHandler: vi.fn(), inspect: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  handle: vi.fn(),
+  removeHandler: vi.fn(),
+  inspect: vi.fn(),
+  list: vi.fn()
+}))
 vi.mock('electron', () => ({
+  app: { getPath: () => '/user-data' },
   ipcMain: { handle: mocks.handle, removeHandler: mocks.removeHandler }
 }))
 vi.mock('../sandbox/sbx-inspection', () => ({ inspectLocalSandboxes: mocks.inspect }))
+vi.mock('../sandbox/sandbox-provisioning-store', () => ({
+  SandboxProvisioningStore: class {
+    list = vi.fn(() => [])
+  }
+}))
+vi.mock('../sandbox/sandbox-provisioning-manager', () => ({
+  defaultSandboxCommands: { command: vi.fn() },
+  SandboxProvisioningManager: class {
+    list = mocks.list
+    acquireSandbox = vi.fn()
+  }
+}))
 import { registerSandboxHandlers } from './sandboxes'
 
 beforeEach(() => {
@@ -46,5 +64,22 @@ describe('sandbox IPC registration', () => {
         .map(([channel]) => channel)
         .filter((channel) => channel === 'sandboxes:inspect')
     ).toEqual(['sandboxes:inspect', 'sandboxes:inspect'])
+  })
+
+  it('recovers provisioning only after window-attached registration returns', async () => {
+    mocks.list.mockResolvedValue([])
+    const store = { getProjects: () => [], getRepos: () => [] }
+
+    registerSandboxHandlers(store as never, {} as never)
+
+    expect(mocks.list).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(mocks.list).toHaveBeenCalledOnce())
+  })
+
+  it('does not recover provisioning without a window', async () => {
+    registerSandboxHandlers()
+    await Promise.resolve()
+
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 })

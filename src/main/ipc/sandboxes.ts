@@ -47,10 +47,6 @@ function provisioningManager(): SandboxProvisioningManager {
   return manager
 }
 
-export async function recoverSandboxProvisioning(): Promise<void> {
-  await provisioningManager().list()
-}
-
 export function registerSandboxHandlers(store?: Store, mainWindow?: BrowserWindow): void {
   const acquire = (target: unknown) => provisioningManager().acquireSandbox(target)
   if (store && mainWindow) {
@@ -94,6 +90,12 @@ export function registerSandboxHandlers(store?: Store, mainWindow?: BrowserWindo
     ipcMain.handle('sandboxes:unlinkProject', (_event, projectId: unknown) =>
       projects.unlink(projectId)
     )
+    // Deferred off the startup tick so recovery reconnects only once every IPC handler is registered.
+    void Promise.resolve()
+      .then(() => provisioningManager().list())
+      .catch((error) => {
+        console.error('[sandbox] Could not recover provisioning state:', error)
+      })
   }
   const policy = new SandboxPolicyService(acquire)
   ipcMain.removeHandler('sandboxes:policy')
