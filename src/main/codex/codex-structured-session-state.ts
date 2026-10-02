@@ -15,11 +15,9 @@ import {
   type CodexTurnOpenWaits
 } from './codex-structured-turn-open-wait'
 import type { CodexDispatchEchoes } from './codex-structured-dispatch-echo'
-import type { AgentSessionBackgroundTaskState } from '../../shared/agent-session-wire'
 import type { AgentChildWorkEvidence } from '../../shared/agent-status-child-work-evidence'
 import type { CodexBackgroundTaskTracker } from './codex-background-task-tracker'
 import type { CodexJournalTranslator } from './codex-structured-journal-translation'
-import type { CodexTurnProcessSnapshot } from './codex-structured-turn-processes'
 import type { StructuredAgentSessionEndedEvent } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { CodexStructuredPermissionPolicy } from './codex-structured-permission-policy'
 import type {
@@ -79,10 +77,6 @@ export type CodexStructuredSessionAdapterDeps = {
   /** Host capability seam; production uses the native Windows process table. */
   isWindowsProcessStartTimeAvailable?: () => boolean
   onEvent?: (event: CodexStructuredSessionEvent) => void
-  onBackgroundTasksChanged?: (
-    sessionId: string,
-    state: AgentSessionBackgroundTaskState | null
-  ) => void
   /** What the session's child work did, delivered after the journal handled the frame. */
   onChildWorkEvidence?: (sessionId: string, evidence: AgentChildWorkEvidence[]) => void
   /** A send admitted earlier: its identity once Codex echoes it, or its rejection when the turn
@@ -102,11 +96,6 @@ export type CodexStructuredSessionAdapterDeps = {
   mintAcquisitionGeneration?: () => string
   now?: () => number
   requestTimeoutMs?: number
-  captureTurnProcesses?: (rootPid: number) => Promise<CodexTurnProcessSnapshot | null>
-  terminateTurnProcesses?: (
-    rootPid: number,
-    baseline: CodexTurnProcessSnapshot | null
-  ) => Promise<boolean>
   /** Host model catalog; sessions write their listings through and read back. */
   modelCatalog?: AgentModelCatalogStore
 }
@@ -167,6 +156,16 @@ export function codexSessionLifecycle(
     fence,
     acquisitionGeneration,
     turnOpenWaits: createCodexTurnOpenWaits()
+  }
+}
+
+/** A child that exited while being acquired never becomes the session's. */
+export function assertCodexConnectionOpen(
+  connection: Pick<CodexAppServerConnection, 'closed'>,
+  sessionId: string
+): void {
+  if (connection.closed) {
+    throw new Error(`codex app-server for session ${sessionId} exited while being acquired`)
   }
 }
 

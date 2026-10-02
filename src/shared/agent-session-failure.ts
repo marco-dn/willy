@@ -6,6 +6,7 @@
 // value the provider wrote — never recovered from a string afterwards, since by then nothing can
 // tell a provider's sentence from Orca's.
 
+import { structuralValuesEqualIgnoringUndefined } from './structural-value-equality'
 import {
   readAgentSessionRefusalReference,
   type AgentSessionRefusalReference
@@ -34,6 +35,8 @@ export const AGENT_SESSION_FAILURE_KINDS = [
   'chatClosed',
   'hostRestarted',
   'notDelivered',
+  /** A conversation command the chat's state refused when its turn to run came. */
+  'commandRefused',
   'compactionFailed',
   'compactionUnconfirmed',
   'cancelUnconfirmed',
@@ -44,7 +47,9 @@ export const AGENT_SESSION_FAILURE_KINDS = [
   /** Orca stopped an agent whose start never finished. */
   'hostStopped',
   /** The provider is retrying a request its API refused; not a failure yet. */
-  'providerRetrying'
+  'providerRetrying',
+  /** A message waits on a child a Stop could not prove gone: its exit is unverifiable. */
+  'previousExitUnverifiable'
 ] as const
 export type AgentSessionFailureKind = (typeof AGENT_SESSION_FAILURE_KINDS)[number]
 
@@ -59,7 +64,8 @@ const STATUS_ROW_ONLY_FAILURE_KINDS = [
   'cancelUnconfirmed',
   'stopRefused',
   'answerUnconfirmed',
-  'providerRetrying'
+  'providerRetrying',
+  'previousExitUnverifiable'
 ] as const satisfies readonly AgentSessionFailureKind[]
 
 /** Why a message was not sent. A new failure kind is one of these until listed above. */
@@ -113,13 +119,16 @@ export type AgentSessionProviderRetry = {
   error?: string
   /** The HTTP status the request failed with. */
   status?: number
+  /** The provider's own account of what failed, written for a person: the row's second line. */
+  cause?: string
 }
 
 export type AgentSessionFailureFact = {
   kind: AgentSessionFailureKind
   /** Provider-authored only; absent whenever Orca wrote the words. */
   detail?: ProviderDiagnostic
-  /** On `restartFailed` and `startFailed`: the refusal that kept the agent from starting. */
+  /** On `restartFailed` and `startFailed`: the refusal that kept the agent from starting. On
+   *  `commandRefused`: the refusal that kept the command from running. */
   refusal?: AgentSessionRefusalReference
   /** On `attachmentInvalid`: which check the attachment failed. */
   attachment?: AgentSessionAttachmentProblem
@@ -197,7 +206,7 @@ function readAttachmentProblem(value: unknown): AgentSessionAttachmentProblem | 
     : { reason }
 }
 
-/** A retry as a reader meets it; undefined when it names neither field. */
+/** A retry as a reader meets it; undefined when it names no field. */
 export function readProviderRetry(value: unknown): AgentSessionProviderRetry | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -208,8 +217,10 @@ export function readProviderRetry(value: unknown): AgentSessionProviderRetry | u
     typeof value.status === 'number' && Number.isInteger(value.status) && value.status > 0
       ? value.status
       : undefined
-  return error || status
-    ? { ...(error ? { error } : {}), ...(status ? { status } : {}) }
+  const cause =
+    typeof value.cause === 'string' ? providerDiagnostic(value.cause, 'person')?.text : undefined
+  return error || status || cause
+    ? { ...(error ? { error } : {}), ...(status ? { status } : {}), ...(cause ? { cause } : {}) }
     : undefined
 }
 
@@ -228,6 +239,16 @@ export function readAgentSessionFailureFact(value: unknown): AgentSessionFailure
     ...(attachment ? { attachment } : {}),
     ...(retry ? { retry } : {})
   })
+}
+
+/** The fact only when this build read all of it. Anything it dropped, such as a newer refusal code
+ *  or reason, may change the advice, so a surface that would re-word the fact shows the host's
+ *  sentence instead. */
+export function readWholeAgentSessionFailureFact(
+  value: unknown
+): AgentSessionFailureFact | undefined {
+  const fact = readAgentSessionFailureFact(value)
+  return fact && structuralValuesEqualIgnoringUndefined(fact, value) ? fact : undefined
 }
 
 /** The provider-authored diagnostic an error carries, set only where it was composed. Follows the

@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import type { AgentSessionStatusEvent } from '../../../shared/agent-session-wire'
-import { createTrackedJournalOpener } from '../agent-session-journal/journal-store-test-open'
+import { createTrackedJournalOpener } from '../agent-session-journal/journal-host-database-test-support'
 import { StructuredAgentSessionStatusFeed } from './structured-agent-session-status-feed'
 import { indexedStatusFeedSession } from './structured-agent-session-status-feed-test-session'
+import { createStructuredAgentSessionLogger } from './structured-agent-session-logger'
 
 const SESSION = 'status-session'
 const journals = createTrackedJournalOpener()
@@ -29,7 +30,7 @@ it('publishes each provider child even when a replacement has the same startup p
       agent: 'codex',
       providerHandle: { kind: 'codex', threadId: 'thread-1' }
     },
-    journalDir: join(root, SESSION)
+    stateDirectory: root
   })
   const sessions = new Map<string, ReturnType<typeof indexedStatusFeedSession>>()
   const setChild = (
@@ -42,6 +43,7 @@ it('publishes each provider child even when a replacement has the same startup p
   setChild({ phase: 'starting', generation: 'child-1', fence: 1 })
   const events: AgentSessionStatusEvent[] = []
   const feed = new StructuredAgentSessionStatusFeed({
+    logger: createStructuredAgentSessionLogger(),
     sessions,
     getRecord: () => null,
     now: () => 1

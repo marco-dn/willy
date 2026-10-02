@@ -73,6 +73,7 @@ export async function isCommandOnLocalPath(
   return (await resolveCommandOnLocalPath(command, options)) !== null
 }
 
+/** The absolute path `isCommandOnLocalPath` found, or null. */
 export async function resolveCommandOnLocalPath(
   command: string,
   options: ResolveCommandOptions = {}

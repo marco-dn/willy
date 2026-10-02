@@ -121,6 +121,9 @@ export class OrcaRuntimeWithRuntimeId {
 
   protected structuredAgentSessionTabRestorePromise: Promise<void> | null = null
 
+  // Whether the last tab restore ran with chats on disk but no host to list them.
+  protected structuredAgentSessionInventoryUnverifiable = false
+
   protected structuredAgentSessionStartupRestorePromise: Promise<void> | null = null
 
   protected mobileSessionTabsChangeSequence = 0
@@ -345,7 +348,9 @@ export class OrcaRuntimeWithRuntimeId {
     getPaneAgent: (ptyId) => this.getPaneAgentForTuiIdle(ptyId),
     getFirstPartyAgentStatus: (ptyId) =>
       (ptyId ? this.ptysById.get(ptyId)?.lastExplicitAgentStatus : null) ?? null,
-    readScreenLines: (ptyId) => this.readLiveTerminalScreenLines(ptyId)
+    getHookTurn: (ptyId, agent) => this.readTuiIdleHookTurnForPty(ptyId, agent),
+    readScreenLines: (ptyId) => this.readLiveTerminalScreenLines(ptyId),
+    readScreenRuledLines: (ptyId) => this.readScreenRuledLines(ptyId)
   }
 
   protected readonly terminalIdlePolls = new RuntimeTerminalIdlePolls({

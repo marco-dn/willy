@@ -56,6 +56,7 @@ const KNOWN_PREEXISTING_I2_FAILURES: Record<string, number> = {
   'codex-0158-model-retired-dialog': 6,
   // Same extra dim bit on the 0.157/0.158 header row (STA-8834 fixtures).
   'codex-0-157-1-update-dialog': 16,
+  'codex-0-157-1-timed-sleep-turn': 6,
   'codex-0-158-0-approval': 12,
   'codex-0-158-0-timed-turn': 20,
   'codex-0-158-0-trustprompt': 36,
@@ -65,7 +66,40 @@ const KNOWN_PREEXISTING_I2_FAILURES: Record<string, number> = {
   // background that the round trip does not restore to default. Verified as upstream, not a
   // regression, by replaying it against the previous build
   // (`build-serialize-addon-at-ref.mjs --ref origin/main`): I1 and I3 both hold.
-  'dsh-tui-ready-no-key': 10
+  'dsh-tui-ready-no-key': 10,
+  // Hermes banner cells restore with an extra bold bit under the jitter schedule.
+  'hermes-tui-ready': 2,
+  // STA-8741 agy/Cline/Prime captures, serializer untouched: the same true-colour background
+  // left on restored cells as DSH, plus Prime's cursor row after its alternate-screen repaints.
+  'antigravity-1-2-14-busy-thinking': 2,
+  'antigravity-1-2-14-command-palette': 4,
+  'antigravity-1-2-14-draft': 4,
+  'antigravity-1-2-14-model-picker': 2,
+  'antigravity-1-2-14-picker-dismissed': 2,
+  'antigravity-1-2-14-ready': 12,
+  'antigravity-1-2-14-ready-80x24': 2,
+  'antigravity-1-2-14-ready-accept-edits': 4,
+  'antigravity-1-2-14-ready-plan': 4,
+  'antigravity-1-2-14-trust-dialog': 26,
+  'cline-3-0-66-busy-streaming': 6,
+  'cline-3-0-66-draft': 6,
+  'cline-3-0-66-permission': 6,
+  'cline-3-0-66-promo': 15,
+  'cline-3-0-66-ready': 11,
+  'cline-3-0-66-ready-80x24': 2,
+  'cline-3-0-66-slash-menu': 6,
+  'cline-3-0-66-turn-ended': 10,
+  'prime-agent-0-9-5-ready': 18,
+  'prime-agent-0-9-5-turn': 4,
+  'prime-agent-0-9-8-busy-streaming': 16,
+  'prime-agent-0-9-8-draft': 10,
+  'prime-agent-0-9-8-ready': 22,
+  'prime-agent-0-9-8-ready-80x24': 16,
+  'prime-agent-0-9-8-ready-after-question': 2,
+  'prime-agent-0-9-8-slash-menu': 34,
+  'prime-agent-0-9-8-tool-turn': 40,
+  'prime-agent-0-9-8-trace-question': 4,
+  'prime-agent-0-9-8-turn-ended': 24
 }
 
 // Exact resize checkpoints and full GridDiff hashes from base 6835b9b4e3ea, not this branch.
@@ -203,6 +237,12 @@ describe('serialize round trip over captured PTY transcripts', () => {
         console.log(`${transcript.name} ${JSON.stringify(counts)}`)
       }
       expect(blocking).toEqual([])
+      if (SEEDS === 2 && transcript.name === 'hermes-tui-ready') {
+        expect(failureSignatures).toEqual([
+          'jitter/false/2/34:0db2561506ff28d2e83276b07bc8684541957f61e488b6f8081627e8cad80c63',
+          'jitter/true/2/34:0db2561506ff28d2e83276b07bc8684541957f61e488b6f8081627e8cad80c63'
+        ])
+      }
       if (SEEDS === 2 && transcript.name.startsWith('freebuff-')) {
         expect(failureSignatures).toEqual(FREEBUFF_BASELINE[transcript.name] ?? [])
       } else if (!OLD_ADDON_PATH && SEEDS === 2) {

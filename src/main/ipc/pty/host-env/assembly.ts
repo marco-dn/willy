@@ -286,11 +286,11 @@ export function buildPtyHostEnv(
     // Why: user startup files may re-export CODEX_HOME; shell-ready wrappers restore this runtime home before Codex launches.
     baseEnv.ORCA_CODEX_HOME = opts.selectedCodexHomePath
     const preflightCommand = resolveCodexShellLaunchPreflightCommand({
-      hooksEnabled: opts.codexStatusHooksEnabled ?? opts.agentStatusHooksEnabled,
+      hooksEnabled:
+        opts.agentStatusHooksEnabled && isTuiAgentEnabled('codex', opts.disabledTuiAgents),
       isPackaged: opts.isPackaged,
       isWsl: opts.isWsl,
       managedHomePath: opts.selectedCodexHomePath,
-      userDataPath: opts.userDataPath,
       resourcesPath: opts.resourcesPath
     })
     if (preflightCommand) {

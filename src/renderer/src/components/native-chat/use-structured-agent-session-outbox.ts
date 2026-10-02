@@ -1,19 +1,30 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import type { AgentJournalSubmission } from '../../../../shared/agent-session-journal-types'
 import { createStructuredAgentSessionOperationId } from '../../../../shared/structured-agent-session-mutation'
 import {
   admitStructuredAgentSessionOutboxEntry,
-  createStructuredAgentSessionOutboxEntry,
-  reconcileStructuredAgentSessionOutbox,
-  type StructuredAgentSessionOutboxEntry
-} from '../../../../shared/structured-agent-session-outbox'
-import { withdrawUnsentStructuredAgentSessionOutboxEntries } from '../../../../shared/structured-agent-session-outbox-stop-withdrawal'
+  structuredAgentSessionEntryHeldForRetry
+} from '../../../../shared/structured-agent-session-outbox-admission'
 import {
   journalAnswersInFlightSend,
   type StructuredAgentSessionSendDisposition
 } from '../../../../shared/structured-agent-session-send-disposition'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
-import { readOutbox, writeOutbox } from './structured-agent-session-outbox-storage'
+import {
+  appendStructuredAgentSessionOutboxMessage,
+  commitStructuredAgentSessionOutbox,
+  getStructuredAgentSessionOutbox,
+  loadStructuredAgentSessionOutbox,
+  readOutbox,
+  subscribeToStructuredAgentSessionOutbox
+} from './structured-agent-session-outbox-storage'
 import {
   dispatchStructuredAgentSessionOutboxEntry,
   readMountedStructuredAgentSessionOutbox,
@@ -24,6 +35,22 @@ import { useStructuredAgentSessionOutboxOwnerChange } from '@/runtime/structured
 import { useStructuredAgentSessionOutboxUnconfirmedProbe } from './use-structured-agent-session-outbox-unconfirmed-probe'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import { useStructuredAgentSessionWithdrawnRestore } from './structured-agent-session-withdrawn-message-restore'
+import { useStructuredAgentSessionOutboxOwnership } from './use-structured-agent-session-outbox-ownership'
+import {
+  handedOffQueuedMessageIds,
+  reconcileStructuredAgentSessionOutboxWithQueue
+} from '../../../../shared/structured-agent-session-draft-hand-off'
+import {
+  structuredAgentSessionEntryAttempt,
+  type StructuredAgentSessionQueueDelivery
+} from '../../../../shared/structured-agent-session-outbox-delivery'
+import { retryStructuredAgentSessionOutboxEntry } from './structured-agent-session-outbox-retry'
+import { useStructuredAgentSessionOutboxFailedHere } from './use-structured-agent-session-outbox-failed-here'
+
+const NO_QUEUE_DELIVERY: StructuredAgentSessionQueueDelivery = {
+  capability: 'unsupported',
+  enabled: false
+}
 
 export function structuredSessionOperationId(): string {
   return createStructuredAgentSessionOperationId(createBrowserUuid)
@@ -36,22 +63,50 @@ export function useStructuredAgentSessionOutbox(args: {
   submissions: readonly AgentJournalSubmission[]
   /** The composer that gets back what a Stop withdrew from this client's outbox. */
   composerScopeKey?: string
+  /** The host's queued-messages capability and the user's setting; a send stamped
+   *  `delivery: 'queue-if-active'` is held as a draft only while the agent is working. */
+  queueDelivery?: StructuredAgentSessionQueueDelivery
+  /** Ids of the host's published drafts. A queued send whose acknowledgement was lost keeps
+   *  its entry here under the draft's own id; once the host visibly holds the draft, the
+   *  entry retires so the same text can never come back twice. */
+  queuedMessageIds?: readonly string[]
 }) {
-  const { composerScopeKey, fence, sessionId, submissions, target } = args
-  // What resends, unblocks and drops a send in flight besides a Retry or a new send; see the hook.
+  const {
+    composerScopeKey,
+    fence,
+    queueDelivery = NO_QUEUE_DELIVERY,
+    queuedMessageIds,
+    sessionId,
+    submissions,
+    target
+  } = args
+  const { capability: queueCapability, enabled: queueEnabled } = queueDelivery
+  // What resends and drops a send in flight besides a Retry or a new send; see the hook.
   const owner = useStructuredAgentSessionOutboxOwnerChange(target, fence)
   const restoreWithdrawn = useStructuredAgentSessionWithdrawnRestore(sessionId, composerScopeKey)
-  const [outbox, setOutbox] = useState<StructuredAgentSessionOutboxEntry[]>(() =>
-    readMountedStructuredAgentSessionOutbox(sessionId, fence, readOutbox)
+  // The outbox lives in the session's store, shared with every other writer; this view holds it
+  // open and drains it. Loading maps what a previous owner left mid-send.
+  const load = useCallback(
+    () => readMountedStructuredAgentSessionOutbox(sessionId, fence, readOutbox),
+    // Why: only the load at open reads the fence; later fences must not re-create the hold.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessionId]
   )
-  const outboxRef = useRef(outbox)
+  const subscribe = useCallback(
+    (listener: () => void) => subscribeToStructuredAgentSessionOutbox(sessionId, load, listener),
+    [load, sessionId]
+  )
+  const outbox = useSyncExternalStore(subscribe, () =>
+    loadStructuredAgentSessionOutbox(sessionId, load)
+  )
   const outboxSessionRef = useRef(sessionId)
   // The entry whose send is in flight, or null. One ref, because "is something in flight" and
   // "which entry" must never disagree: the journal can settle the tail while the head moves.
   const inFlightIdRef = useRef<string | null>(null)
   const dispatchGenerationRef = useRef(0)
-  const blockedIdRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { failedHere, recordFailures, forget } =
+    useStructuredAgentSessionOutboxFailedHere(sessionId)
   const [errorSession, setErrorSession] = useState(sessionId)
   // Render-time reset (react.dev: adjusting state when a prop changes), so the
   // old session's banner neither flashes for a frame nor resurrects on return.
@@ -60,45 +115,37 @@ export function useStructuredAgentSessionOutbox(args: {
     setError(null)
   }
 
-  useEffect(() => {
-    outboxRef.current = outbox
-  }, [outbox])
-
   useLayoutEffect(() => {
     dispatchGenerationRef.current += 1
     inFlightIdRef.current = null
-    blockedIdRef.current = null
   }, [owner.ownerChange, owner.targetKey, sessionId])
 
   useEffect(() => {
     const sessionChanged = outboxSessionRef.current !== sessionId
     outboxSessionRef.current = sessionId
-    const current = sessionChanged
-      ? readMountedStructuredAgentSessionOutbox(sessionId, owner.fenceRef.current, readOutbox)
-      : outboxRef.current
+    const current = getStructuredAgentSessionOutbox(sessionId)
     const next = requeueInterruptedStructuredAgentSessionDispatches(current, owner.fenceRef.current)
     if (
       sessionChanged ||
       next.some((entry, index) => entry !== current[index]) ||
       next.length !== current.length
     ) {
-      outboxRef.current = next
-      setOutbox(next)
-      writeOutbox(sessionId, next)
+      commitStructuredAgentSessionOutbox(sessionId, next)
     }
   }, [owner.fenceRef, owner.ownerChange, sessionId, target])
 
   useEffect(() => {
-    const current = outboxRef.current
-    const hostOwns = new Set(
-      submissions
+    const current = getStructuredAgentSessionOutbox(sessionId)
+    const hostOwns = new Set([
+      ...submissions
         .filter(
           (submission) =>
             submission.dispatchState === 'pending' || submission.dispatchState === 'accepted'
         )
-        .map((submission) => submission.clientMessageId)
-    )
-    const next = reconcileStructuredAgentSessionOutbox(current, submissions)
+        .map((submission) => submission.clientMessageId),
+      ...handedOffQueuedMessageIds(submissions)
+    ])
+    const next = reconcileStructuredAgentSessionOutboxWithQueue(current, submissions)
     const admittedInFlight = journalAnswersInFlightSend(submissions, inFlightIdRef.current)
     if (
       admittedInFlight ||
@@ -106,9 +153,7 @@ export function useStructuredAgentSessionOutbox(args: {
       next.length !== current.length
     ) {
       restoreWithdrawn.byHost(current, submissions)
-      outboxRef.current = next
-      setOutbox(next)
-      writeOutbox(sessionId, next)
+      commitStructuredAgentSessionOutbox(sessionId, next)
     }
     // Keyed on the entry actually in flight, which is no longer always the head: the journal
     // owning it outranks a send promise that has not settled, so release single-flight and make
@@ -118,11 +163,12 @@ export function useStructuredAgentSessionOutbox(args: {
       dispatchGenerationRef.current += 1
       inFlightIdRef.current = null
     }
-    if (blockedIdRef.current !== null && hostOwns.has(blockedIdRef.current)) {
-      blockedIdRef.current = null
-      setError(null)
-    } else if (
-      current.some((entry) => entry.state === 'unconfirmed' && hostOwns.has(entry.clientMessageId))
+    if (
+      current.some(
+        (entry) =>
+          (entry.state === 'unconfirmed' || structuredAgentSessionEntryHeldForRetry(entry)) &&
+          hostOwns.has(entry.clientMessageId)
+      )
     ) {
       setError(null)
     }
@@ -134,28 +180,28 @@ export function useStructuredAgentSessionOutbox(args: {
       // Released here rather than in a `.finally`: the state write below is what re-runs the
       // drain, so a later microtask would leave the queue with no trigger to move on.
       inFlightIdRef.current = null
-      blockedIdRef.current = disposition.blockedClientMessageId
       setError(disposition.error)
-      outboxRef.current = disposition.entries
-      setOutbox(disposition.entries)
-      writeOutbox(sessionId, disposition.entries)
+      recordFailures(getStructuredAgentSessionOutbox(sessionId), disposition.entries)
+      commitStructuredAgentSessionOutbox(sessionId, disposition.entries)
     },
-    [sessionId]
+    [recordFailures, sessionId]
   )
 
+  const [drains, setDrains] = useState(0)
+  const drainAgain = useCallback(() => setDrains((count) => count + 1), [])
+
   useEffect(() => {
-    const head = outbox[0]
+    // The shared outbox, not this render's copy: an effect earlier in this commit (an owner
+    // change's requeue, a reconcile) or a launch settlement may have written a newer one.
+    const current = getStructuredAgentSessionOutbox(sessionId)
+    const head = current[0]
     if (!head || head.sessionId !== sessionId) {
       return
     }
-    const mirrorPersisted = (): void => {
-      const latest = readOutbox(sessionId, { recoverDispatching: false })
-      outboxRef.current = latest
-      setOutbox(latest)
-    }
     // A launch settlement dispatches outside this hook's single-flight, so while its send is up
-    // nothing else may go out beside it and race it for the host's arrival order.
-    const launching = outbox.find((entry) => entry.source === 'launch')
+    // nothing else may go out beside it and race it for the host's arrival order. Its writes land
+    // in the shared outbox, but it releases its marker after the last one, so drain again then.
+    const launching = current.find((entry) => entry.source === 'launch')
     const launchDispatch = launching
       ? getStructuredAgentLaunchPromptDispatch(
           launching.sessionId,
@@ -163,64 +209,54 @@ export function useStructuredAgentSessionOutbox(args: {
           fence ?? undefined
         )
       : undefined
-    if (launching && launchDispatch) {
-      const persisted = readOutbox(sessionId, { recoverDispatching: false })
-      const persistedLaunch = persisted.find(
-        (entry) => entry.clientMessageId === launching.clientMessageId
-      )
-      if (persistedLaunch?.state !== launching.state) {
-        outboxRef.current = persisted
-        setOutbox(persisted)
-      }
-      void launchDispatch.then(mirrorPersisted)
+    if (launchDispatch) {
+      void launchDispatch.then(drainAgain, drainAgain)
       return
     }
-    const admission = admitStructuredAgentSessionOutboxEntry(outbox, blockedIdRef.current)
+    const admission = admitStructuredAgentSessionOutboxEntry(current)
     if (admission.state !== 'dispatch' || fence === null || inFlightIdRef.current !== null) {
       return
     }
     const next = admission.entry
-    // A launch settlement may have already admitted this entry and cleared its in-flight marker
-    // before this effect observes the queued React snapshot. Storage is the shared ownership
-    // record; only dispatch when the persisted entry is still queued.
-    const persisted = readOutbox(sessionId, { recoverDispatching: false })
-    const persistedEntry = persisted.find((entry) => entry.clientMessageId === next.clientMessageId)
-    if (persistedEntry?.state !== 'queued') {
-      outboxRef.current = persisted
-      setOutbox(persisted)
-      return
-    }
-    const dispatchGeneration = dispatchGenerationRef.current
+    // The request reads the capability; the entry keeps only what its first attempt sent.
+    const attempt = structuredAgentSessionEntryAttempt(next, {
+      capability: queueCapability,
+      enabled: queueEnabled
+    })
     const dispatch = dispatchStructuredAgentSessionOutboxEntry({
-      next: persistedEntry,
-      persisted,
+      next: attempt.wire,
+      entries: current.map((entry) => (entry === next ? attempt.stored : entry)),
       sessionId,
       target,
       fence,
-      dispatchGeneration,
+      dispatchGeneration: dispatchGenerationRef.current,
       dispatchGenerationRef,
       inFlightIdRef,
-      blockedIdRef,
-      outboxRef,
-      setOutbox,
       setError,
       applyDisposition,
       createOperationId: structuredSessionOperationId
     })
     if (!dispatch.started) {
-      // The launch settlement owns this entry. Its storage mutation does not update this hook's
-      // local state, so mirror the settled state once the shared admission finishes.
-      void dispatch.promise.then(mirrorPersisted)
+      // A launch settlement already owns this entry's send.
+      void dispatch.promise.then(drainAgain, drainAgain)
     }
-  }, [applyDisposition, fence, outbox, sessionId, target])
+  }, [
+    applyDisposition,
+    drainAgain,
+    drains,
+    fence,
+    outbox,
+    queueCapability,
+    queueEnabled,
+    sessionId,
+    target
+  ])
 
   useStructuredAgentSessionOutboxUnconfirmedProbe({
     sessionId,
     outbox,
     submissions,
-    owner,
-    outboxRef,
-    setOutbox
+    owner
   })
 
   const send = useCallback(
@@ -228,104 +264,41 @@ export function useStructuredAgentSessionOutbox(args: {
       if (!text.trim() && attachments.length === 0) {
         return false
       }
-      const entry = createStructuredAgentSessionOutboxEntry({
-        clientMessageId: structuredSessionOperationId(),
-        sessionId,
-        text,
-        attachments,
-        queuedAt: Date.now()
-      })
-      const next = [...outboxRef.current, entry]
-      if (!writeOutbox(sessionId, next)) {
+      // Whether it asks to be queued is decided when it first goes out.
+      if (!appendStructuredAgentSessionOutboxMessage(sessionId, text, attachments)) {
         setError('Message could not be saved to the outbox')
         return false
       }
-      outboxRef.current = next
-      setOutbox(next)
       setError(null)
       return true
     },
     [sessionId]
   )
 
-  // Before the Stop goes out, so the drain has nothing left to send after it.
-  const withdrawUnsent = useCallback((): void => {
-    const next = withdrawUnsentStructuredAgentSessionOutboxEntries(
-      outboxRef.current,
-      submissions,
-      blockedIdRef.current,
-      inFlightIdRef.current
-    )
-    if (next.length !== outboxRef.current.length) {
-      restoreWithdrawn.byStop(outboxRef.current.filter((entry) => !next.includes(entry)))
-      outboxRef.current = next
-      setOutbox(next)
-      writeOutbox(sessionId, next)
-    }
-  }, [restoreWithdrawn, sessionId, submissions])
+  const { withdrawUnsent } = useStructuredAgentSessionOutboxOwnership({
+    sessionId,
+    submissions,
+    queuedMessageIds,
+    inFlightIdRef,
+    dispatchGenerationRef,
+    restoreWithdrawn
+  })
 
   const retry = (clientMessageId: string): void => {
-    // Another message's Retry must not send the one the queue is held on.
-    if (blockedIdRef.current === clientMessageId) {
-      blockedIdRef.current = null
-    }
     setError(null)
-    const submission = submissions.find(
-      (candidate) => candidate.clientMessageId === clientMessageId
-    )
-    const current = outboxRef.current.find((entry) => entry.clientMessageId === clientMessageId)
-    // The host settled this id as rejected, and reusing it only replays that forever, so rotate the
-    // id for a safe resend. Read from the message itself, which outlives a restart, or from a
-    // reconciliation that settled an earlier unknown before the outbox caught up. A refusal that
-    // settled the message already rotated it.
-    const recordedRejection =
-      current?.state === 'rejected' && current.lastFailure?.kind === 'rejected'
-    if (current && (recordedRejection || submission?.dispatchState === 'rejected')) {
-      const rotated = outboxRef.current.map((entry) =>
-        entry.clientMessageId === clientMessageId
-          ? {
-              ...entry,
-              clientMessageId: structuredSessionOperationId(),
-              state: 'queued' as const,
-              lastAttemptAt: null,
-              retryAfterUnknownSubmittedAt: null
-            }
-          : entry
-      )
-      if (!writeOutbox(sessionId, rotated)) {
-        setError('Message could not be saved to the outbox')
-        return
-      }
-      outboxRef.current = rotated
-      setOutbox(rotated)
-      return
-    }
-    const retryAfterUnknownSubmittedAt =
-      submission?.dispatchState === 'unknown'
-        ? submission.submittedAt
-        : current?.state === 'unconfirmed'
-          ? -1
-          : null
-    const next = outboxRef.current.map((entry) =>
-      entry.clientMessageId === clientMessageId
-        ? {
-            ...entry,
-            state: 'queued' as const,
-            retryAfterUnknownSubmittedAt
-          }
-        : entry
-    )
-    if (!writeOutbox(sessionId, next)) {
-      setError('Message could not be saved to the outbox')
-      return
-    }
-    outboxRef.current = next
-    setOutbox(next)
+    forget(clientMessageId)
+    retryStructuredAgentSessionOutboxEntry({
+      clientMessageId,
+      sessionId,
+      submissions,
+      setError,
+      createOperationId: structuredSessionOperationId
+    })
   }
   return {
     outbox,
     error,
-    blockedClientMessageId: blockedIdRef.current,
+    failedHere,
     send,
     retry,
     withdrawUnsent

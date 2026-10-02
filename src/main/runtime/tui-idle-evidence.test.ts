@@ -5,6 +5,10 @@ import { isTuiAgent, TUI_AGENT_CONFIG } from '../../shared/tui-agent-config'
 import { getTuiAgentRestSignal } from '../../shared/tui-agent-rest-signal'
 import { isKnownReadyPromptBody } from './terminal-wait-detection'
 import {
+  evaluateAgentStateRules,
+  readsTrustedScreen
+} from './agent-state-rules/agent-state-rules-engine'
+import {
   evaluateTuiIdle,
   hasFreshDoneFirstPartyStatus,
   hasQuietReadyScreen,
@@ -31,6 +35,7 @@ function input(overrides: Partial<TuiIdleEvaluationInput> = {}): TuiIdleEvaluati
     readTailBlockedReason: () => null,
     readPositiveBodyEvidence: () => false,
     readQuietReadyBodyEvidence: () => true,
+    readAgentRuleVerdict: () => null,
     agent: 'muse',
     firstPartyStatus: null,
     quiescenceMs: QUIESCENCE_MS,
@@ -196,11 +201,38 @@ describe('rest signal agrees with the lanes that can settle a wait', () => {
     const hookDone = hasFreshDoneFirstPartyStatus(agent, { state: 'done', updatedAt: Date.now() })
     expect(hookDone).toBe(signal === 'hook-done')
     let screenRead = false
-    isKnownReadyPromptBody('', agent, () => {
-      screenRead = true
-      return null
-    })
+    isKnownReadyPromptBody(
+      '',
+      agent,
+      () => {
+        screenRead = true
+        return null
+      },
+      false
+    )
     const quietScreenBody = hasQuietReadyScreen(record(), agent, () => true, QUIESCENCE_MS)
+    // Why a screen-ruled `none` is sound: its screen shuts the quiet lane whenever one is readable.
+    if (readsTrustedScreen(agent)) {
+      const refused = ['> not an idle composer']
+      const ruled = (screen: readonly string[] | null) =>
+        evaluateAgentStateRules(agent, { readScreenLines: () => screen })
+      expect(ruled(refused)?.state).toBe('hold')
+      const verdict = (screen: readonly string[] | null) =>
+        evaluateTuiIdle(
+          input({
+            agent,
+            record: record({ lastOscTitle: null }),
+            readQuietReadyBodyEvidence: () => false,
+            readAgentRuleVerdict: () => ruled(screen)
+          })
+        )
+      expect(verdict(refused)).toEqual({ kind: 'pending', quietForeground: 'closed' })
+      expect(verdict(null)).toEqual({
+        kind: 'pending',
+        quietForeground: signal === 'none' ? 'after-paint' : 'closed'
+      })
+      return
+    }
     // Why not only ready-body: Codex keeps its stronger hook-driven title beside this lane.
     if (quietScreenBody) {
       expect(signal).not.toBe('none')
@@ -242,6 +274,7 @@ describe('a DSH pane settles tui-idle on its own hook', () => {
     rendererTitle: undefined,
     readPositiveBodyEvidence: () => false,
     readQuietReadyBodyEvidence: () => false,
+    readAgentRuleVerdict: () => null,
     readTailBlockedReason: () => null,
     agent: 'dsh' as const,
     firstPartyStatus: { state: 'done' as const, updatedAt: Date.now() },

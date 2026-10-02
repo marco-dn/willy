@@ -22,6 +22,7 @@ import {
   reconcileStructuredAgentSessionOutbox,
   type StructuredAgentSessionOutboxEntry
 } from './structured-agent-session-outbox'
+import { structuredAgentSessionEntryHeldForRetry } from './structured-agent-session-outbox-admission'
 
 const entry: StructuredAgentSessionOutboxEntry = createStructuredAgentSessionOutboxEntry({
   clientMessageId: 'client-1',
@@ -59,7 +60,6 @@ function notice(reason: string | null, rejection?: AgentSessionFailureFact): str
   const disposition = disposeStructuredAgentSessionSendResult({
     entries: [entry],
     entry,
-    blockedClientMessageId: null,
     result: rejectedWith(reason, rejection ? { rejection } : {}),
     createOperationId: () => 'unused'
   })
@@ -71,10 +71,52 @@ function notice(reason: string | null, rejection?: AgentSessionFailureFact): str
   )
 }
 
+describe('a queued draft answer', () => {
+  it('retires the outbox entry: the host-held draft carries any later refusal', () => {
+    const disposition = disposeStructuredAgentSessionSendResult({
+      entries: [entry],
+      entry,
+      result: {
+        ok: true,
+        replayed: false,
+        fence: 1,
+        cursor: { epoch: 'epoch-1', sequence: 10 },
+        value: {
+          clientMessageId: 'client-1',
+          queued: { messageId: 'client-1', position: 1, state: 'waiting' }
+        }
+      },
+      createOperationId: () => 'unused'
+    })
+    expect(disposition.entries).toEqual([])
+    expect(disposition.error).toBeNull()
+  })
+
+  it('a withdrawn replay is spent, not unknown', () => {
+    const disposition = disposeStructuredAgentSessionSendResult({
+      entries: [entry],
+      entry,
+      result: {
+        ok: true,
+        replayed: true,
+        fence: 1,
+        cursor: { epoch: 'epoch-1', sequence: 10 },
+        value: {
+          clientMessageId: 'client-1',
+          queued: { messageId: 'client-1', position: 1, state: 'withdrawn' }
+        }
+      },
+      createOperationId: () => 'unused'
+    })
+    expect(disposition.entries).toEqual([])
+    expect(disposition.error).toBeNull()
+  })
+})
+
 describe('what a rejection shows the user', () => {
   it('removes a queued message the provider confirms Stop cancelled', () => {
     const result = rejectedWith(DISPATCH_REJECTED_CANCELLED)
-    if (!result.ok) {
+    if (!result.ok || !('submission' in result.value)) {
       throw new Error('expected rejected submission fixture')
     }
 
@@ -114,21 +156,16 @@ describe('what a rejection shows the user', () => {
       const disposition = disposeStructuredAgentSessionSendResult({
         entries: [entry],
         entry,
-        blockedClientMessageId: null,
         result: rejectedWith(DISPATCH_REJECTED_CANCELLED, { rejection, replayed }),
         createOperationId: () => 'unused'
       })
-      expect(disposition).toEqual({
-        entries: [],
-        error: null,
-        blockedClientMessageId: null
-      })
+      expect(disposition).toEqual({ entries: [], error: null })
     }
   })
 
   it('reads a withdrawal off the typed fact whatever the reason says', () => {
     const result = rejectedWith('Withdrawn.', { rejection: { kind: 'cancelled' } })
-    if (!result.ok) {
+    if (!result.ok || !('submission' in result.value)) {
       throw new Error('expected rejected submission fixture')
     }
     expect(reconcileStructuredAgentSessionOutbox([entry], [result.value.submission])).toEqual([])
@@ -136,7 +173,6 @@ describe('what a rejection shows the user', () => {
       disposeStructuredAgentSessionSendResult({
         entries: [entry],
         entry,
-        blockedClientMessageId: null,
         result,
         createOperationId: () => 'unused'
       }).error
@@ -219,7 +255,6 @@ describe('what a refusal shows the user', () => {
     const disposition = disposeStructuredAgentSessionSendResult({
       entries: [entry],
       entry,
-      blockedClientMessageId: null,
       result: {
         ok: false,
         refusal: {
@@ -231,7 +266,7 @@ describe('what a refusal shows the user', () => {
     })
 
     expect(disposition.error).toBeNull()
-    expect(disposition.blockedClientMessageId).toBe(entry.clientMessageId)
+    expect(structuredAgentSessionEntryHeldForRetry(disposition.entries[0]!)).toBe(true)
     expect(disposition.entries).toMatchObject([
       {
         clientMessageId: entry.clientMessageId,
@@ -250,7 +285,6 @@ describe('what a refusal shows the user', () => {
     const disposition = disposeStructuredAgentSessionSendResult({
       entries: [entry],
       entry,
-      blockedClientMessageId: null,
       result: {
         ok: false,
         refusal: {
@@ -279,7 +313,6 @@ describe('what a refusal shows the user', () => {
     const disposition = disposeStructuredAgentSessionSendResult({
       entries: [entry],
       entry,
-      blockedClientMessageId: null,
       result: rejectedWith('An image on this message is empty, so the message was not sent.', {
         rejection: {
           kind: 'attachmentInvalid',
@@ -301,7 +334,6 @@ describe('what a refusal shows the user', () => {
     const disposition = disposeStructuredAgentSessionSendFailure({
       entries: [entry],
       entry,
-      blockedClientMessageId: null,
       cause: new Error('socket hang up: ECONNRESET 10.0.0.2:443'),
       isDeliveryUnknown: () => false
     })
@@ -316,14 +348,13 @@ describe('what a refusal shows the user', () => {
       lastFailure: { kind: 'refused', code: 'agent_session_checkpoint_stale' }
     }
     const result = rejectedWith(null)
-    if (!result.ok) {
+    if (!result.ok || !('submission' in result.value)) {
       throw new Error('expected a send result')
     }
     result.value.submission = { ...result.value.submission, dispatchState: 'accepted' }
     const disposition = disposeStructuredAgentSessionSendResult({
       entries: [refused],
       entry: refused,
-      blockedClientMessageId: null,
       result,
       createOperationId: () => 'unused'
     })
@@ -337,30 +368,52 @@ describe('ambiguous operation refusals', () => {
   it.each([
     { ...entry, state: 'unconfirmed' as const, lastAttemptAt: 10 },
     { ...entry, state: 'queued' as const, lastAttemptAt: 10, retryAfterUnknownSubmittedAt: 10 }
-  ])('never rotates $state operation after its host tombstone expires', (ambiguous) => {
+  ])(
+    'never rotates $state operation after its host tombstone expires; holds it for its Retry',
+    (ambiguous) => {
+      const disposition = disposeStructuredAgentSessionSendResult({
+        entries: [ambiguous],
+        entry: ambiguous,
+        result: {
+          ok: false,
+          refusal: {
+            code: 'agent_session_operation_expired',
+            message: 'Operation expired.'
+          }
+        },
+        createOperationId: () => 'fresh-id'
+      })
+
+      // An earlier attempt under the kept id may have landed, so no new id goes out on its own.
+      expect(disposition.entries).toMatchObject([
+        {
+          clientMessageId: entry.clientMessageId,
+          state: 'queued',
+          lastFailure: { kind: 'refused', code: 'agent_session_operation_expired' }
+        }
+      ])
+      expect(structuredAgentSessionEntryHeldForRetry(disposition.entries[0]!)).toBe(true)
+      expect(disposition.error).toBeNull()
+    }
+  )
+
+  it('rotates a first attempt the host calls expired, which nothing can have delivered', () => {
     const disposition = disposeStructuredAgentSessionSendResult({
-      entries: [ambiguous],
-      entry: ambiguous,
-      blockedClientMessageId: null,
+      entries: [entry],
+      entry,
       result: {
         ok: false,
-        refusal: {
-          code: 'agent_session_operation_expired',
-          message: 'Operation expired.'
-        }
+        refusal: { code: 'agent_session_operation_expired', message: 'Operation expired.' }
       },
       createOperationId: () => 'fresh-id'
     })
 
-    expect(disposition.entries).toMatchObject([
-      { clientMessageId: entry.clientMessageId, state: 'queued' }
-    ])
-    expect(disposition.blockedClientMessageId).toBe(entry.clientMessageId)
+    expect(disposition.entries).toMatchObject([{ clientMessageId: 'fresh-id', state: 'rejected' }])
   })
 
   it('parks a recovered missing submission without polling forever', () => {
     const result = rejectedWith(null)
-    if (!result.ok) {
+    if (!result.ok || !('submission' in result.value)) {
       throw new Error('expected a send result')
     }
     result.value.submission = {
@@ -373,7 +426,6 @@ describe('ambiguous operation refusals', () => {
     const disposition = disposeStructuredAgentSessionSendResult({
       entries: [entry],
       entry,
-      blockedClientMessageId: null,
       result,
       createOperationId: () => 'unused'
     })

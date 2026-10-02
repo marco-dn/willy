@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import type {
+  AgentJournalItemBody,
+  AgentJournalRenderItem,
+  AgentJournalTurnScope
+} from '../../../../shared/agent-session-journal-types'
 import type { NativeChatMessage } from '../../../../shared/native-chat-types'
+import { nativeChatTurnMembership } from '../../../../shared/native-chat-turn-membership'
 import {
-  selectNativeChatActiveTurnKey,
   selectNativeChatTurnStatuses,
   type NativeChatTurnStatus
 } from '../../../../shared/native-chat-turn-status'
@@ -10,7 +15,8 @@ import type { NativeChatResolvedPrompt } from './native-chat-resolution-receipt'
 import type { NativeChatTurnDiff } from './native-chat-turn-diffs'
 import {
   buildNativeChatTranscriptSlots,
-  nativeChatSlotIndexOf
+  nativeChatSlotIndexOf,
+  type NativeChatMessageSlot
 } from './native-chat-transcript-slots'
 
 const NO_STATUSES = { active: null, completedByTurn: {} }
@@ -28,7 +34,7 @@ function text(id: string, body: string, role: NativeChatMessage['role'] = 'assis
 function build(
   messages: NativeChatMessage[],
   overrides: Partial<Parameters<typeof buildNativeChatTranscriptSlots>[0]> = {}
-) {
+): NativeChatMessageSlot[] {
   let turn: string | undefined
   const turnKeys = messages.map((message) => {
     if (message.role === 'user') {
@@ -39,7 +45,7 @@ function build(
   return buildNativeChatTranscriptSlots({
     messages,
     turnKeys,
-    activeTurnKey: selectNativeChatActiveTurnKey(messages),
+    liveTurnKey: undefined,
     receipts: new Map<string, NativeChatResolvedPrompt>(),
     turnStatuses: NO_STATUSES,
     turnDiffs: new Map<string, NativeChatTurnDiff>(),
@@ -47,7 +53,7 @@ function build(
     isWorking: false,
     lifecycleWorking: false,
     ...overrides
-  })
+  }).filter((slot): slot is NativeChatMessageSlot => slot.kind === 'message')
 }
 
 function toolRun(id: string): NativeChatMessage {
@@ -111,7 +117,7 @@ describe('transcript slots', () => {
   it('keeps a message whose only content is a turn status under it', () => {
     const status: NativeChatTurnStatus = { startedAt: 1, thinking: false, workedSeconds: 4 }
     const slots = build([text('u', '', 'user')], {
-      activeTurnKey: 'u',
+      liveTurnKey: 'u',
       turnStatuses: { active: status, completedByTurn: {} }
     })
     expect(slots).toHaveLength(1)
@@ -141,7 +147,7 @@ describe('transcript slots', () => {
   it('puts the running turn bar under the prompt it answers', () => {
     const status: NativeChatTurnStatus = { startedAt: 1, thinking: false, workedSeconds: null }
     const slots = build([text('u', 'ask', 'user'), text('a', 'answer')], {
-      activeTurnKey: 'u',
+      liveTurnKey: 'u',
       turnStatuses: { active: status, completedByTurn: {} },
       isWorking: true
     })
@@ -206,6 +212,231 @@ describe('a send the host rejected', () => {
   })
 })
 
+describe('a turn no message opened', () => {
+  const settled = (workedSeconds: number): NativeChatTurnStatus => ({
+    startedAt: 1,
+    thinking: false,
+    workedSeconds
+  })
+
+  it('draws its status at its first row and folds its work behind it', () => {
+    const messages = [
+      text('u1', 'List three fruits', 'user'),
+      text('a1', 'Apple, banana, cherry.'),
+      toolRun('wake-tool'),
+      text('wake-answer', 'The background task finished.')
+    ]
+    const slots = build(messages, {
+      turnKeys: ['u1', 'u1', 'wake', 'wake'],
+      turnStatuses: {
+        active: settled(4),
+        completedByTurn: { u1: settled(4), wake: settled(9) }
+      }
+    })
+    const statusOf = (id: string) =>
+      slots.find((slot) => slot.message.id === id)?.status?.workedSeconds
+    expect(statusOf('u1')).toBe(4)
+    expect(statusOf('wake-tool')).toBe(9)
+    expect(statusOf('wake-answer')).toBeUndefined()
+    const toolSlot = slots.find((slot) => slot.message.id === 'wake-tool')
+    expect(toolSlot).toMatchObject({ folded: true, turnFolds: true, turnKey: 'wake' })
+  })
+
+  const failure = (id: string): NativeChatMessage => ({
+    ...text(id, 'The agent exited unexpectedly.', 'system'),
+    blocks: [{ type: 'text' as const, text: 'The agent exited unexpectedly.', tone: 'error' }]
+  })
+
+  it('ends a failed turn on its error, folding the prose before it', () => {
+    const messages = [
+      text('u1', 'go', 'user'),
+      text('a1', 'Looking.'),
+      toolRun('work'),
+      failure('exit')
+    ]
+    const slots = build(messages, {
+      turnStatuses: { active: settled(3), completedByTurn: { u1: settled(3) } }
+    })
+    // Folded rows take no slot; the error is the turn's visible end.
+    expect(slots.map((slot) => [slot.message.id, slot.folded])).toEqual([
+      ['u1', false],
+      ['exit', false]
+    ])
+  })
+
+  it('folds an error the agent recovered from behind the answer that followed it', () => {
+    const messages = [text('u1', 'go', 'user'), failure('retry'), text('a1', 'Done.')]
+    const slots = build(messages, {
+      turnStatuses: { active: settled(3), completedByTurn: { u1: settled(3) } }
+    })
+    expect(slots.map((slot) => [slot.message.id, slot.folded])).toEqual([
+      ['u1', false],
+      ['a1', false]
+    ])
+  })
+})
+
+describe('the live turn', () => {
+  const settled = (workedSeconds: number): NativeChatTurnStatus => ({
+    startedAt: 1,
+    thinking: false,
+    workedSeconds
+  })
+  const working: NativeChatTurnStatus = { startedAt: 1, thinking: false, workedSeconds: null }
+  const THREAD: AgentJournalTurnScope = { kind: 'thread' }
+  const inTurn = (turnItemId: string): AgentJournalTurnScope => ({ kind: 'turn', turnItemId })
+  let sequence = 0
+  const entry = (
+    itemId: string,
+    body: AgentJournalItemBody,
+    turnScope: AgentJournalTurnScope = THREAD
+  ): AgentJournalRenderItem => {
+    sequence += 1
+    return { itemId, revision: 0, sequence, observedAt: sequence, body, turnScope }
+  }
+  const record = (itemId: string, userItemId: string, state: 'running' | 'completed') =>
+    entry(itemId, { kind: 'turn', turnId: itemId, state, userItemId })
+  const row = (id: string, turnScope: AgentJournalTurnScope = THREAD) =>
+    entry(
+      id,
+      { kind: 'message', role: 'assistant', blocks: [{ type: 'text', text: id }] },
+      turnScope
+    )
+
+  /** "List three fruits", answered and settled; then a turn the provider opened on its own. */
+  const messages = [
+    text('u1', 'List three fruits', 'user'),
+    text('a1', 'Apple, banana, cherry.'),
+    toolRun('wake-tool'),
+    text('wake-note', 'Checking the background build.')
+  ]
+  function wakeJournal(state: 'running' | 'completed'): AgentJournalRenderItem[] {
+    return [
+      entry('u1', { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'go' }] }),
+      record('t1', 'u1', 'completed'),
+      row('a1', inTurn('t1')),
+      record('wake', 'claude:wake', state),
+      row('wake-tool', inTurn('wake')),
+      row('wake-note', inTurn('wake'))
+    ]
+  }
+  function buildLive(
+    rows: NativeChatMessage[],
+    journal: AgentJournalRenderItem[] | null,
+    overrides: Partial<Parameters<typeof buildNativeChatTranscriptSlots>[0]>
+  ) {
+    const { turnKeys, liveTurnKey } = nativeChatTurnMembership(
+      rows,
+      journal ? { items: journal, submissions: [] } : null
+    )
+    return build(rows, { turnKeys, liveTurnKey, ...overrides })
+  }
+  const slotOf = (slots: ReturnType<typeof build>, id: string) =>
+    slots.find((slot) => slot.message.id === id)
+
+  it('leaves the settled user turn its duration while a turn the provider opened runs', () => {
+    const slots = buildLive(messages, wakeJournal('running'), {
+      isWorking: true,
+      turnStatuses: { active: working, completedByTurn: { u1: settled(4) } }
+    })
+    expect(slotOf(slots, 'u1')?.status?.workedSeconds).toBe(4)
+    expect(
+      slots.filter((slot) => slot.status !== undefined).map((slot) => slot.message.id)
+    ).toEqual(['u1', 'wake-tool'])
+  })
+
+  it('draws a turn the provider opened at its first row, running and then settled', () => {
+    const running = buildLive(messages, wakeJournal('running'), {
+      isWorking: true,
+      turnStatuses: { active: working, completedByTurn: { u1: settled(4) } }
+    })
+    expect(running.map((slot) => [slot.message.id, slot.status])).toEqual([
+      ['u1', settled(4)],
+      ['a1', undefined],
+      ['wake-tool', working],
+      ['wake-note', undefined]
+    ])
+    const ended = buildLive(messages, wakeJournal('completed'), {
+      turnStatuses: { active: settled(4), completedByTurn: { u1: settled(4), wake: settled(9) } }
+    })
+    expect(slotOf(ended, 'u1')?.status?.workedSeconds).toBe(4)
+    expect(slotOf(ended, 'wake-tool')?.status?.workedSeconds).toBe(9)
+  })
+
+  it('keeps the running turn live, and the settled turn before it settled', () => {
+    const slots = buildLive(messages, wakeJournal('running'), { isWorking: true })
+    expect(slots.map((slot) => [slot.message.id, slot.turnKey, slot.activeTurnIsWorking])).toEqual([
+      ['u1', 'u1', false],
+      ['a1', 'u1', false],
+      ['wake-tool', 'wake', true],
+      ['wake-note', 'wake', true]
+    ])
+  })
+
+  it('leaves the settled user turn alone while the running turn has drawn nothing yet', () => {
+    const journal = wakeJournal('running').slice(0, 4)
+    const slots = buildLive(messages.slice(0, 2), journal, {
+      isWorking: true,
+      turnStatuses: { active: working, completedByTurn: { u1: settled(4) } }
+    })
+    expect(
+      slots.map((slot) => [slot.message.id, slot.status?.workedSeconds, slot.activeTurnIsWorking])
+    ).toEqual([
+      ['u1', 4, false],
+      ['a1', undefined, false]
+    ])
+  })
+
+  it('still draws a running turn a message opened on that message, with its rows live', () => {
+    const journal = [
+      entry('u1', { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'go' }] }),
+      record('t1', 'u1', 'running'),
+      row('a1', inTurn('t1'))
+    ]
+    const rows = messages.slice(0, 2)
+    const live = buildLive(rows, journal, { isWorking: true })
+    expect(live.map((slot) => [slot.turnKey, slot.activeTurnIsWorking])).toEqual([
+      ['u1', true],
+      ['u1', true]
+    ])
+    const stopped = buildLive(rows, journal, {
+      turnStatuses: { active: settled(3), completedByTurn: {} }
+    })
+    expect(slotOf(stopped, 'u1')?.status?.workedSeconds).toBe(3)
+  })
+
+  it('reads a turn the provider opened by journal order where the host states no scope', () => {
+    const unscoped = wakeJournal('running').map(({ turnScope: _scope, ...rest }) => rest)
+    const slots = buildLive(messages, unscoped, {
+      isWorking: true,
+      turnStatuses: { active: working, completedByTurn: { u1: settled(4) } }
+    })
+    expect(
+      slots.map((slot) => [slot.turnKey, slot.status?.workedSeconds, slot.activeTurnIsWorking])
+    ).toEqual([
+      ['u1', 4, false],
+      ['u1', undefined, false],
+      ['wake', null, true],
+      ['wake', undefined, true]
+    ])
+  })
+
+  it('keeps the newest user row live with no journal', () => {
+    const slots = buildLive(messages, null, {
+      isWorking: true,
+      turnStatuses: { active: settled(2), completedByTurn: {} }
+    })
+    expect(
+      slots.map((slot) => [slot.turnKey, slot.status?.workedSeconds, slot.activeTurnIsWorking])
+    ).toEqual([
+      ['u1', 2, true],
+      ['u1', undefined, true],
+      ['u1', undefined, true],
+      ['u1', undefined, true]
+    ])
+  })
+})
+
 // Rows belong to the turn the host says owns them, not to the nearest preceding
 // user bubble. The owned turn keys reshape the fold, the bar and liveness.
 describe('turn-owned grouping', () => {
@@ -257,7 +488,7 @@ describe('turn-owned grouping', () => {
     const messages = [text('u1', 'earlier', 'user'), toolRun('w1'), text('done', 'Woke up.')]
     const slots = build(messages, {
       turnKeys: ['u1', 'wake', 'wake'],
-      activeTurnKey: 'wake',
+      liveTurnKey: 'wake',
       turnStatuses: { active: settled, completedByTurn: {} },
       isWorking: true
     })
@@ -302,7 +533,7 @@ describe('turn-owned grouping', () => {
     const messages = [text('A', 'go', 'user'), toolRun('t1'), text('C', 'next up', 'user')]
     const slots = build(messages, {
       turnKeys: ['A', 'A', 'C'],
-      activeTurnKey: 'A',
+      liveTurnKey: 'A',
       isWorking: true
     })
     expect(slots.map((slot) => [slot.message.id, slot.activeTurnIsWorking])).toEqual([
@@ -310,74 +541,5 @@ describe('turn-owned grouping', () => {
       ['t1', true],
       ['C', false]
     ])
-  })
-})
-
-describe("a subagent's rows speak as that subagent", () => {
-  const settled: NativeChatTurnStatus = { startedAt: 1, thinking: false, workedSeconds: 5 }
-  const roster: NativeChatMessage = {
-    id: 'roster',
-    role: 'system',
-    blocks: [
-      {
-        type: 'subagent-group',
-        groupId: 'group-1',
-        agents: [{ id: 'task-1', label: 'explore the lane', state: 'working' }]
-      }
-    ],
-    timestamp: 1,
-    source: 'transcript'
-  }
-  const child = (id: string, body: string, agentId = 'task-1'): NativeChatMessage => ({
-    ...text(id, body),
-    agentId
-  })
-  const messages = [
-    text('ask', 'summarise the repo', 'user'),
-    text('answer', 'Delegated; the summary follows.'),
-    roster,
-    child('child-said', 'The PR is CLEAN.')
-  ]
-
-  it("keeps the parent's answer on a settled turn and folds the subagent's later words", () => {
-    const slots = build(messages, {
-      turnStatuses: { active: null, completedByTurn: { ask: settled } },
-      subagentLabels: new Map([['task-1', 'explore the lane']])
-    })
-    const drawn = slots.filter((slot) => !slot.folded).map((slot) => slot.message.id)
-    expect(drawn).toContain('answer')
-    expect(drawn).not.toContain('child-said')
-  })
-
-  it("names the subagent on its row from the roster, and only on a subagent's row", () => {
-    const slots = build(messages, {
-      subagentLabels: new Map([['task-1', 'explore the lane']])
-    })
-    const labelOf = (id: string) => slots.find((slot) => slot.message.id === id)?.subagentLabel
-    expect(labelOf('child-said')).toBe('explore the lane')
-    expect(labelOf('answer')).toBeUndefined()
-  })
-
-  it("keeps the parent's run live while its subagent works below it", () => {
-    const trailing = (rows: NativeChatMessage[]) =>
-      build(rows)
-        .filter((slot) => slot.trailingRun)
-        .map((slot) => slot.message.id)
-    const childRun: NativeChatMessage = { ...toolRun('child-run'), agentId: 'task-1' }
-    // The parent is still inside its spawn call; the child's work does not move it past.
-    expect(trailing([text('ask', 'go', 'user'), toolRun('spawn'), childRun])).toEqual([
-      'spawn',
-      'child-run'
-    ])
-    // The parent answering does move it past its own run, whatever the child does.
-    expect(
-      trailing([text('ask', 'go', 'user'), toolRun('spawn'), text('said', 'Done.'), childRun])
-    ).toEqual(['said', 'child-run'])
-  })
-
-  it('reserves room for the caption on a subagent row', () => {
-    const [parentSlot] = build([text('mine', 'same words')])
-    const [childSlot] = build([child('theirs', 'same words')])
-    expect(childSlot!.estimatedHeight).toBeGreaterThan(parentSlot!.estimatedHeight)
   })
 })

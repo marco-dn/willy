@@ -2,16 +2,17 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TuiAgent } from '../../shared/tui-agent'
-import { createTranscriptPane } from './agent-transcript-pane-test-harness'
+import { createTranscriptPane, waitForTranscriptIdle } from './agent-transcript-pane-test-harness'
 import {
   readRuntimeFixture,
   replayTranscript,
   type TranscriptReplayFrame
 } from './agent-transcript-replay-test-harness'
-import { isCodexComposerReadyScreen } from './codex-terminal-readiness'
+import { isCodexComposerReadyScreen } from './agent-state-rules/codex-screen-predicates'
 import {
   detectTerminalWaitBlockedReason,
   isKnownReadyPromptBody,
+  isKnownReadyPromptPreview,
   isQuietReadyScreenBody
 } from './terminal-wait-detection'
 import {
@@ -191,10 +192,12 @@ describe('Codex composer ready screen, frame by frame', () => {
     const verdict = evaluateTuiIdle({
       record: { lastAgentStatus: null, lastOutputAt: 0, lastOscTitle: null },
       readTailBlockedReason: () => detectTerminalWaitBlockedReason(waitText),
-      readPositiveBodyEvidence: () => isKnownReadyPromptBody(waitText, 'codex', () => screenLines),
+      readPositiveBodyEvidence: () =>
+        isKnownReadyPromptBody(waitText, 'codex', () => screenLines, true),
       readQuietReadyBodyEvidence: () =>
         isQuietReadyScreenBody(waitText, 'codex', () => screenLines),
       agent: 'codex',
+      readAgentRuleVerdict: () => null,
       firstPartyStatus: null,
       quiescenceMs: QUIESCENCE_MS
     })
@@ -269,7 +272,95 @@ describe('the quiet lane over recorded chunk timing (default animations)', () =>
   )
 })
 
-describe('never less ready than origin/main', () => {
+describe('a busy 0.150-0.157 pane whose header stays in the tail', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it.each(['codex-0-155-1-timed-turn', 'codex-0-157-1-timed-sleep-turn'])(
+    '%s: never settles tui-idle mid-turn, and settles once the finished turn is quiet',
+    async (name) => {
+      const { chunks, times, promptAt } = readTimedFixture(name)
+      const frames = await collectFrames(chunks)
+      vi.useFakeTimers()
+      const verdictAt = (index: number, now: number) => {
+        vi.setSystemTime(now)
+        const { waitText, screenLines } = frames[index]!
+        return evaluateTuiIdle({
+          record: { lastAgentStatus: null, lastOutputAt: times[index]!, lastOscTitle: null },
+          readTailBlockedReason: () => detectTerminalWaitBlockedReason(waitText),
+          readPositiveBodyEvidence: () =>
+            isKnownReadyPromptBody(waitText, 'codex', () => screenLines, true),
+          readQuietReadyBodyEvidence: () =>
+            isQuietReadyScreenBody(waitText, 'codex', () => screenLines),
+          agent: 'codex',
+          readAgentRuleVerdict: () => null,
+          firstPartyStatus: null,
+          quiescenceMs: QUIESCENCE_MS
+        })
+      }
+      const lastBusy = frames.findLastIndex((frame) => BUSY_STATUS_RE.test(screenOf(frame)))
+      const firstTurnChunk = times.findIndex((at) => at >= promptAt)
+      let headerMidTurn = 0
+      for (let index = firstTurnChunk; index <= lastBusy; index += 1) {
+        if (isKnownReadyPromptPreview(frames[index]!.waitText)) {
+          headerMidTurn += 1
+        }
+        const settles = isTuiIdleReadyVerdict(verdictAt(index, times[index + 1]! - 1))
+        expect({ index, settles }).toEqual({ index, settles: false })
+      }
+      // Presence precondition: the ready header is in the tail mid-turn, so the fix is load-bearing.
+      expect(headerMidTurn).toBeGreaterThan(0)
+      const last = frames.length - 1
+      expect(verdictAt(last, times[last]!).kind).toBe('pending')
+      expect(verdictAt(last, times[last]! + QUIESCENCE_MS + 1).kind).toBe('ready-strong')
+    },
+    120_000
+  )
+
+  const header = [
+    '│ >_ OpenAI Codex (v0.157.1)                               │',
+    '│ model:       GPT-6-Sol high   /model to change           │',
+    '│ directory:   ~/repo/app                                  │'
+  ]
+
+  it('reads the header as tier-1 evidence only for a pane with no output clock', () => {
+    const waitText = header.join('\n')
+    expect(isKnownReadyPromptBody(waitText, 'codex', () => header, true)).toBe(false)
+    expect(isKnownReadyPromptBody(waitText, 'codex', () => header, false)).toBe(true)
+    expect(isKnownReadyPromptBody(waitText, null, () => header, true)).toBe(true)
+  })
+
+  // Why: a restored or reattached pane has no lastOutputAt, so the quiet lane can never fire.
+  const NOW = 60_000
+  it.each([
+    [null, 'ready-strong'],
+    [0, 'ready-strong'],
+    [NOW - 1_000, 'pending']
+  ] as const)(
+    'a codex pane whose lastOutputAt is %s reads its header as %s',
+    (lastOutputAt, kind) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(NOW)
+      const waitText = header.join('\n')
+      const record = { lastAgentStatus: null, lastOutputAt, lastOscTitle: null }
+      const verdict = evaluateTuiIdle({
+        record,
+        readTailBlockedReason: () => detectTerminalWaitBlockedReason(waitText),
+        readPositiveBodyEvidence: () =>
+          isKnownReadyPromptBody(waitText, 'codex', () => header, record.lastOutputAt !== null),
+        readQuietReadyBodyEvidence: () => isQuietReadyScreenBody(waitText, 'codex', () => header),
+        agent: 'codex',
+        readAgentRuleVerdict: () => null,
+        firstPartyStatus: null,
+        quiescenceMs: QUIESCENCE_MS
+      })
+      expect(verdict.kind).toBe(kind)
+    }
+  )
+})
+
+describe('reading the live screen never removes quiet-lane readiness', () => {
   const records = [
     { lastAgentStatus: null, lastOutputAt: 0, lastOscTitle: null },
     { lastAgentStatus: 'idle' as const, lastOutputAt: 0, lastOscTitle: 'codex' },
@@ -287,8 +378,9 @@ describe('never less ready than origin/main', () => {
             const base = {
               readTailBlockedReason: () => detectTerminalWaitBlockedReason(frame.waitText),
               readPositiveBodyEvidence: () =>
-                isKnownReadyPromptBody(frame.waitText, agent, () => frame.screenLines),
+                isKnownReadyPromptBody(frame.waitText, agent, () => frame.screenLines, true),
               agent,
+              readAgentRuleVerdict: () => null,
               firstPartyStatus: null,
               quiescenceMs: QUIESCENCE_MS
             } satisfies Omit<TuiIdleEvaluationInput, 'record' | 'readQuietReadyBodyEvidence'>
@@ -296,7 +388,7 @@ describe('never less ready than origin/main', () => {
               const before = evaluateTuiIdle({
                 ...base,
                 record,
-                // Why a withheld screen: that leaves exactly main's Muse lane, the only widening.
+                // Why a withheld screen: isolates what the live screen adds to the quiet lane.
                 readQuietReadyBodyEvidence: () =>
                   isQuietReadyScreenBody(frame.waitText, agent, () => null)
               })
@@ -343,21 +435,24 @@ describe('through the runtime', () => {
   // Why 0.158 alone: its header carries no `model:`, so only this lane settles it.
   const CODEX_0158 = 'codex-0-158-0-timed-turn'
   async function pane(name: string, launchAgent: TuiAgent, size?: { cols: number; rows: number }) {
-    return createTranscriptPane({
+    const created = await createTranscriptPane({
       paneTitle: 'Terminal',
       foregroundProcess: launchAgent,
       launchAgent,
       data: readRuntimeFixture(name),
       size
     })
+    await created.runtime.readTerminal(created.handle, { screen: true })
+    return created
   }
 
   // Why 8s: quiescence (3s) plus the 2s poll re-reading the grid.
   it('codex 0.158: a tui-idle wait settles once the composer is quiet', async () => {
     const { runtime, handle } = await pane(CODEX_0158, 'codex', { cols: 120, rows: 40 })
-    await expect(
-      runtime.waitForTerminal(handle, { condition: 'tui-idle', timeoutMs: 8_000 })
-    ).resolves.toMatchObject({ condition: 'tui-idle', satisfied: true })
+    await expect(waitForTranscriptIdle({ runtime, handle }, 8_000)).resolves.toMatchObject({
+      condition: 'tui-idle',
+      satisfied: true
+    })
   }, 15_000)
 
   it('keeps a Claude pane showing the same screen pending', async () => {
@@ -365,8 +460,6 @@ describe('through the runtime', () => {
       cols: 120,
       rows: 40
     })
-    await expect(
-      runtime.waitForTerminal(handle, { condition: 'tui-idle', timeoutMs: 6_000 })
-    ).rejects.toThrow(/timeout/)
+    await expect(waitForTranscriptIdle({ runtime, handle }, 6_000)).rejects.toThrow(/timeout/)
   }, 15_000)
 })

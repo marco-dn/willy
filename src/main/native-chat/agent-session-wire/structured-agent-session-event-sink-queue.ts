@@ -1,6 +1,7 @@
 import type {
   StructuredAgentSessionAppendOptions,
   StructuredAgentSessionEventTarget,
+  StructuredAgentSessionLinkageJournal,
   StructuredAgentSessionReadingControl,
   StructuredAgentSessionSinkAdmission,
   StructuredAgentSessionSinkBarrier,
@@ -44,7 +45,8 @@ export class StructuredAgentSessionSinkQueue {
   constructor(
     private readonly deps: {
       watermarks: StructuredAgentSessionSinkWatermarks
-      onError?: (error: unknown) => void
+      /** The queue just failed for good; it accepts and runs nothing more. */
+      onFailed?: (error: unknown) => void
       readingControl?: StructuredAgentSessionReadingControl
       onBackpressureChange?: (
         backpressured: boolean,
@@ -63,6 +65,11 @@ export class StructuredAgentSessionSinkQueue {
   })
 
   journalEpoch = (): string | null => this.target?.journal.epoch ?? null
+
+  journalLinkage = (): StructuredAgentSessionLinkageJournal | null => this.target?.journal ?? null
+
+  journalStopDecidesTurn = (turnId: string, endedAt: number, openedBy?: string): boolean =>
+    this.target?.journal.stopMarks.personStopDecides(turnId, endedAt, openedBy) ?? false
 
   bindReadingControl(control: StructuredAgentSessionReadingControl): () => void {
     this.readingControl = control
@@ -209,7 +216,7 @@ export class StructuredAgentSessionSinkQueue {
   private fail = (error: unknown): void => {
     if (this.failure === null) {
       this.failure = { error }
-      this.deps.onError?.(error)
+      this.deps.onFailed?.(error)
     }
     this.queue.length = 0
     this.queuedBytes = 0

@@ -18,7 +18,6 @@ import { omitNativeChatThreadGoalRows } from './native-chat-thread-goal-rows'
 import { buildNativeChatTranscriptSlots } from './native-chat-transcript-slots'
 import type { NativeChatTurnDiff } from './native-chat-turn-diffs'
 import { projectStructuredAgentSessionMessages } from './structured-agent-session-message-projection'
-import { selectNativeChatActiveTurnKey } from '../../../../shared/native-chat-turn-status'
 
 function row(sequence: number, body: AgentJournalItemBody, itemId = `item-${sequence}`) {
   return { itemId, revision: 1, sequence, observedAt: 1_000 + sequence, body }
@@ -70,7 +69,7 @@ const JOURNAL: AgentJournalRenderItem[] = [
 function loadedRailItems(items: AgentJournalRenderItem[], submissions: AgentJournalSubmission[]) {
   const projected = createNativeChatMessageListProjection()(
     projectStructuredAgentSessionMessages(items, [], submissions)
-  )
+  ).conversation
   const messages = omitNativeChatThreadGoalRows(projectNativeChatTaskListFrames(projected))
   let turn: string | undefined
   const turnKeys = messages.map((message) => {
@@ -82,7 +81,7 @@ function loadedRailItems(items: AgentJournalRenderItem[], submissions: AgentJour
   const slots = buildNativeChatTranscriptSlots({
     messages,
     turnKeys,
-    activeTurnKey: selectNativeChatActiveTurnKey(messages),
+    liveTurnKey: turn,
     receipts: new Map<string, NativeChatResolvedPrompt>(),
     turnStatuses: { active: null, completedByTurn: {} },
     turnDiffs: new Map<string, NativeChatTurnDiff>(),

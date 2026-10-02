@@ -17,6 +17,7 @@ import {
 } from './agent-session-failure-words'
 import type { AgentSessionRefusalReason } from './agent-session-refusal-details'
 import {
+  AGENT_SESSION_HISTORY_UNREAD_CAUSES,
   AGENT_SESSION_WRITE_NOTICE_COPY,
   type AgentSessionWriteNoticePart,
   type AgentSessionWriteNoticeSentence
@@ -117,9 +118,9 @@ const REASON_WORDS = {
       'goElsewhere',
       'openCurrentConversation'
     ),
-    // Nothing settles an unfinished /clear yet, so only a new chat continues.
+    // Only an older host sends this, and it keeps refusing the chat, so only a new chat continues.
     clearUnconfirmed: causeWords('clearUnfinished', 'goElsewhere', 'startNewChat'),
-    // A /clear or /compact whose outcome the host never settled; only the host resolves it.
+    // Only an older host sends this, for a /clear it never settled; only that host resolves it.
     conversationCommandUnconfirmed: codeWords('hostFinding'),
     conversationCommandInFlight: causeWords('commandRunning', 'wait', 'waitForCommand'),
     // The chat's agent process is being replaced, which a start or restart does.
@@ -155,7 +156,9 @@ const REASON_WORDS = {
     spawnIdentityMismatch: codeWords('hostFinding'),
     notResumable: codeWords('retry'),
     noProviderChild: codeWords('retry'),
-    conversationHeldElsewhere: codeWords('retry')
+    conversationHeldElsewhere: codeWords('retry'),
+    // Trying again retries the stop that could not prove the exit.
+    previousExitUnverifiable: causeWords('ownerUnproven', 'retry')
   },
   agent_session_conflict: {
     chatStarting: AGENT_STARTING,
@@ -200,7 +203,8 @@ const REASON_WORDS = {
     // No retry reads past damage, and the words name no step: it only can't load.
     journalCorrupt: causeWords('historyUnusable', 'hostFinding'),
     // Says its step despite 'retry' unless a Retry stands beside it: the phone often has none.
-    journalUnavailable: causeWords('historyUnavailable', 'retry', 'tryAgain')
+    journalUnavailable: causeWords('historyUnavailable', 'retry', 'tryAgain'),
+    journalWrittenByNewerOrca: causeWords('savedByNewerOrca', 'updateOrca', 'updateOrcaToKeepUsing')
   },
   // Thrown, so a client meets these only as an RPC error; the code's words stand.
   structured_agent_session_unsupported: {
@@ -226,20 +230,13 @@ export function agentSessionRefusalReasonWords(
   return reason === undefined ? undefined : byReason?.[reason]
 }
 
-// Each already says the history was not read.
-const HISTORY_CAUSES: ReadonlySet<AgentSessionWriteNoticeSentence> = new Set([
-  'historyUnusable',
-  'historyUnavailable',
-  'historyUnreadable'
-])
-
 /** A cause, and that the request did not happen unless the cause already says so. */
 function causeParts(
   cause: AgentSessionWriteNoticeSentence,
   write: AgentSessionWriteKind
 ): AgentSessionWriteNoticeSentence[] {
   const saysNotDone =
-    (write === 'read-history' && HISTORY_CAUSES.has(cause)) ||
+    (write === 'read-history' && AGENT_SESSION_HISTORY_UNREAD_CAUSES.has(cause)) ||
     (cause === 'questionChanged' && write === 'answer')
   return saysNotDone ? [cause] : [cause, NOT_DONE[write]]
 }
@@ -255,9 +252,8 @@ function reasonParts(
     return undefined
   }
   if ('fact' in words) {
-    const sentence = agentSessionFailureSentence({ kind: words.fact }, 'rejection', context)
     return write === 'send' || write === 'composer-send'
-      ? [NOT_DONE[write], { text: sentence }]
+      ? [NOT_DONE[write], { failure: { kind: words.fact }, surface: 'rejection', context }]
       : undefined
   }
   const said = causeParts(words.cause, write)
@@ -341,7 +337,13 @@ export function agentSessionWriteNoticeEnglish(
   parts: readonly AgentSessionWriteNoticePart[]
 ): string {
   return parts
-    .map((part) => (typeof part === 'string' ? AGENT_SESSION_WRITE_NOTICE_COPY[part] : part.text))
+    .map((part) =>
+      typeof part === 'string'
+        ? AGENT_SESSION_WRITE_NOTICE_COPY[part]
+        : 'text' in part
+          ? part.text
+          : agentSessionFailureSentence(part.failure, part.surface, part.context)
+    )
     .join(' ')
 }
 

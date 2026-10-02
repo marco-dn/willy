@@ -2,7 +2,11 @@ import { assertSandboxLifecycleAllowsExecution } from './sandbox-lifecycle-guard
 import type { Repo } from '../../shared/repo-types'
 import { verifySandboxSshIdentity } from './sandbox-ssh-identity'
 export { verifySandboxSshIdentity } from './sandbox-ssh-identity'
-import { getRepoExecutionHostId, type ExecutionHostId } from '../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  normalizeExecutionHostId,
+  type ExecutionHostId
+} from '../../shared/execution-host'
 import { getRepoIdFromWorktreeId, splitWorktreeId } from '../../shared/worktree/id'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import type { RuntimeStore } from '../runtime/runtime-store-contract'
@@ -175,6 +179,17 @@ export async function withSandboxExecution<T>(
     return target ? context.policy.execute(target, () => next(index + 1)) : operation()
   }
   return next(0)
+}
+
+export function withSandboxAgentExecution<T>(
+  location: { workspaceId: string; executionHostId: string },
+  operation: () => Promise<T>
+): Promise<T> {
+  const hostId = normalizeExecutionHostId(location.executionHostId)
+  if (!hostId) {
+    throw new Error('Invalid agent execution host.')
+  }
+  return withSandboxExecution({ worktreeId: location.workspaceId, hostId }, operation)
 }
 
 export function assertSandboxExecution(request: ExecutionRequest): void {

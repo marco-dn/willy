@@ -76,7 +76,12 @@ export type RuntimePtyWorktreeRecord = RuntimeTerminalTailState & {
   /** Latest first-party state from the agent's own OSC 9999 status stream — what the
    *  agent SAYS it is doing, as opposed to `lastAgentStatus`, which is inferred from its
    *  OSC title. Optional: absent until a payload lands. */
-  lastExplicitAgentStatus?: { state: AgentStatusState; updatedAt: number } | null
+  lastExplicitAgentStatus?: {
+    state: AgentStatusState
+    updatedAt: number
+    /** A `done` row that marks a new session owning the pane, not the end of a turn. */
+    sessionBoundary?: boolean
+  } | null
   lastAgentStatusStartedAtEpochMs: number | null
   lastAgentStatusRichInvalidatedAtEpochMs: number | null
   lastOscTitle: string | null
@@ -107,6 +112,8 @@ export type RuntimePtyTitleTrackerEntry = {
   lastTitleFactAtMs: number | null
   chunkTouchedSessionTabs: boolean
   pendingFacts: TerminalSideEffectFact[]
+  /** Run once this chunk's facts are emitted: status that readers must see after them. */
+  afterFacts: (() => void)[]
   commandCodeDetector: { observe: (data: string) => boolean } | null
 }
 
@@ -115,6 +122,8 @@ export type RuntimeHeadlessTerminal = {
   outputSequence: number
   writeChain: Promise<void>
   ownership: PtyShellOwnershipMirror
+  /** The grid a reattach reflowed the model onto, until a PTY resize off it repaints the TUI. */
+  unrepaintedReflowGrid?: { cols: number; rows: number }
 }
 
 export type RuntimeVisibleTerminalState = {

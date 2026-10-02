@@ -10,7 +10,9 @@ import type {
   NativeChatLiveTurnIndicator,
   NativeChatSettledTurns
 } from '../../../src/shared/native-chat-turn-status'
+import type { NativeChatTurnJournal } from '../../../src/shared/native-chat-turn-membership'
 import type { MobileNativeChatSendOutcome } from './mobile-native-chat-send'
+import type { MobileStructuredQueuedMessageControls } from './use-mobile-structured-queued-message-controls'
 import type { MobileNativeChatPendingMessage } from './use-mobile-native-chat-drafts'
 import type { useMobileNativeChatSession } from './use-mobile-native-chat-session'
 import type { MobileNativeChatSessionOptionPickersProps } from './MobileNativeChatSessionOptionPickers'
@@ -37,10 +39,8 @@ export type MobileNativeChatController = {
   /** Structured lane: host-recorded turn timing for the per-turn status rows. */
   nativeChatWorkingStartedAt: number | null
   nativeChatSettledTurns: NativeChatSettledTurns | null
-  /** Structured lane: the user message the host says opened the running turn. */
-  nativeChatActiveTurnOpenedBy: string | null
-  /** Structured lane: the turn that owns each journal item's row. */
-  nativeChatTurnKeysByItemId: ReadonlyMap<string, string> | null
+  /** Structured lane: the journal that places each transcript row in its turn. */
+  nativeChatTurnJournal: NativeChatTurnJournal | null
   nativeChatCanStop: boolean
   nativeChatStreamingText?: string
   /** Agent mid-turn, regardless of whether chat is the visible view. */
@@ -67,6 +67,9 @@ export type MobileNativeChatController = {
   }) => Promise<boolean>
   handleNativeChatRespondPermission: (text: string) => Promise<boolean>
   handleNativeChatStop: () => void
+  /** Host-held queued drafts shown as cards above the composer (structured lane,
+   *  capable host only; empty otherwise). */
+  nativeChatQueued: MobileStructuredQueuedMessageControls
   nativeChatFilePaths: string[]
   loadNativeChatFiles: (query: string) => void
   handleNativeChatQuestionAnswer: (text: string) => Promise<boolean>

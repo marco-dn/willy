@@ -1,13 +1,12 @@
-import { withSandboxExecution } from '../../sandbox/sandbox-execution-boundary'
-import { normalizeExecutionHostId } from '../../../shared/execution-host'
+import { withSandboxAgentExecution } from '../../sandbox/sandbox-execution-boundary'
 import { isDeepStrictEqual } from 'node:util'
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
 import {
   AgentSessionPreSpawnError,
   isAgentSessionPreSpawnError,
-  rethrowAfterAgentSessionAcquisitionCleanup,
   type StructuredAgentSessionProviderChildPhase
 } from './structured-agent-session-adapter'
+import { rethrowAfterAgentSessionAcquisitionCleanup } from './structured-agent-session-provider-exit-proof'
 import { journalIdentityFor } from './structured-agent-session-attach'
 import type { AttachFlowInput } from './structured-agent-session-attach-flow'
 import { readNativeSessionOptions } from './structured-agent-session-option-restoration'
@@ -99,11 +98,5 @@ export function acquireOwner(
   input: AttachFlowInput,
   record: AgentSessionRecord
 ): ReturnType<typeof acquireOwnerAdmitted> {
-  const hostId = normalizeExecutionHostId(record.location.executionHostId)
-  if (!hostId) {
-    throw new Error('Invalid agent execution host.')
-  }
-  return withSandboxExecution({ worktreeId: record.location.workspaceId, hostId }, () =>
-    acquireOwnerAdmitted(input, record)
-  )
+  return withSandboxAgentExecution(record.location, () => acquireOwnerAdmitted(input, record))
 }

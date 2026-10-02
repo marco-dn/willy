@@ -1,6 +1,5 @@
 import { agentSessionFailureFact } from '../../../shared/agent-session-failure'
 import { recoverStructuredRewind } from './structured-rewind-recovery'
-import { recoverInterruptedCompaction } from './structured-compaction-recovery'
 // The host's attach, lifted out of the host class.
 //
 // Attach is the one operation that touches every collaborator the host owns — the lease
@@ -9,6 +8,7 @@ import { recoverInterruptedCompaction } from './structured-compaction-recovery'
 // state; this owns the ordering between them.
 
 import { randomUUID } from 'node:crypto'
+import { withSandboxAgentExecution } from '../../sandbox/sandbox-execution-boundary'
 import type {
   AgentSessionAttachResult,
   AgentSessionMutationResult,
@@ -68,6 +68,16 @@ export function attachStructuredAgentSessionUnderSerialize(
 }
 
 export function attachStructuredAgentSession(
+  context: StructuredAgentSessionAttachContext,
+  callerKey: string,
+  params: AgentSessionAttachParams
+): Promise<AgentSessionMutationResult<AgentSessionAttachResult>> {
+  return withSandboxAgentExecution(params.location, () =>
+    attachStructuredAgentSessionAdmitted(context, callerKey, params)
+  )
+}
+
+function attachStructuredAgentSessionAdmitted(
   context: StructuredAgentSessionAttachContext,
   callerKey: string,
   params: AgentSessionAttachParams
@@ -136,7 +146,7 @@ async function runAttach(
     const attached = await performAttach({
       store: context.deps.store,
       adapter: context.deps.adapter,
-      journalRoot: context.deps.journalRoot,
+      logger: context.deps.logger,
       eventSink: attemptSink.sink,
       // The superseded child's writes settle into its own journal before a new child starts.
       onAcquiring: async () => {
@@ -203,14 +213,13 @@ async function runAttach(
           }
         }
         await recoverStructuredRewind(
-          context.deps.store,
+          context.deps,
           sessionId,
           attached.journal,
           fence,
           context.deps.adapter,
           context.now
         )
-        await recoverInterruptedCompaction(context.deps.store, sessionId, attached.journal, fence)
         if (fenceBefore !== null && fence !== fenceBefore) {
           context.subscribers.snapshot(sessionId, attached.journal, fence)
         } else {

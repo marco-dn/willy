@@ -3,8 +3,14 @@
 // A replay or result is joined to its waiter by the client uuid Claude echoes.
 // A send Claude FOLDS into the running request cycle is replayed mid-cycle with
 // the client uuid adopted: once that cycle has done work, that replay is a
-// delivery receipt and opens no boundary.
+// delivery receipt and opens no boundary. A `command_lifecycle` frame opens no turn; it and the
+// CLI going idle settle sends the CLI took but never echoed (`claude-command-lifecycle.ts`).
 
+import {
+  observeClaudeCommandLifecycle,
+  releaseClaudeDispatchesUnansweredAtIdle
+} from './claude-command-lifecycle'
+import { claudeSessionStateEndsTurn } from './claude-session-state-turn-over'
 import { forgetRetiredWaiter } from './claude-structured-dispatch-waiters'
 import {
   claudeHasReplayContent,
@@ -21,13 +27,25 @@ import { claudeDispatchContentKey } from './claude-structured-dispatch-content'
 /** Settles a provider-proven late outcome; replay rows independently reconcile acceptance. */
 export type ClaudeLateDispatchSettlement = (input: ClaudeLateDispatchOutcome) => void
 
-export type ClaudeReplayTurnOrigin = { requestedAt: number | null }
+export type ClaudeReplayTurnOrigin = {
+  requestedAt: number | null
+  /** The submission this replay acknowledged, which opens the turn; null for a provider-control turn. */
+  clientMessageId: string | null
+}
 
 export function resolveClaudeReplayTurn(
   session: ClaudeSession,
   message: Record<string, unknown>,
   onSettledLate?: ClaudeLateDispatchSettlement
 ): ClaudeReplayTurnOrigin | null {
+  if (message.type === 'command_lifecycle') {
+    observeClaudeCommandLifecycle(session, message, onSettledLate)
+    return null
+  }
+  if (claudeSessionStateEndsTurn(message)) {
+    releaseClaudeDispatchesUnansweredAtIdle(session, onSettledLate)
+    return null
+  }
   const envelope = readClaudeMessageEnvelope(message)
   const isUserReplay =
     envelope?.role === 'user' &&
@@ -75,7 +93,9 @@ export function resolveClaudeReplayTurn(
     if (exact) {
       const foldReceipt = isUserReplay && claudeReplayIsFoldReceipt(session, exact, uuid)
       settleWaiter(session, exact, uuid, onSettledLate)
-      return isUserReplay && !foldReceipt ? { requestedAt: exact.requestedAt } : null
+      return isUserReplay && !foldReceipt
+        ? { requestedAt: exact.requestedAt, clientMessageId: exact.clientMessageId }
+        : null
     }
     const retired = session.retiredDispatchWaiters.find(
       (candidate) => candidate.sentUuid === userMessageUuid
@@ -97,7 +117,9 @@ export function resolveClaudeReplayTurn(
   if (exact) {
     const foldReceipt = isUserReplay && claudeReplayIsFoldReceipt(session, exact, uuid)
     settleWaiter(session, exact, uuid, onSettledLate)
-    return isUserReplay && !foldReceipt ? { requestedAt: exact.requestedAt } : null
+    return isUserReplay && !foldReceipt
+      ? { requestedAt: exact.requestedAt, clientMessageId: exact.clientMessageId }
+      : null
   }
   const retired = session.retiredDispatchWaiters.find((candidate) => candidate.sentUuid === uuid)
   if (retired) {
@@ -119,7 +141,7 @@ export function resolveClaudeReplayTurn(
       if (compatible.length === 1) {
         const [candidate] = compatible
         settleWaiter(session, candidate!, uuid, onSettledLate)
-        return { requestedAt: candidate!.requestedAt }
+        return { requestedAt: candidate!.requestedAt, clientMessageId: candidate!.clientMessageId }
       }
     } else if (!session.replayContentFallbackBlocked && session.dispatchWaiters.length === 0) {
       const lateCompatible = session.retiredDispatchWaiters.filter(
@@ -150,7 +172,9 @@ export function resolveClaudeReplayTurn(
   const waiter = uuid ? session.dispatchWaiters.shift() : undefined
   if (waiter && uuid) {
     settleWaiter(session, waiter, uuid, onSettledLate)
-    return isUserReplay ? { requestedAt: waiter.requestedAt } : null
+    return isUserReplay
+      ? { requestedAt: waiter.requestedAt, clientMessageId: waiter.clientMessageId }
+      : null
   }
   return null
 }
