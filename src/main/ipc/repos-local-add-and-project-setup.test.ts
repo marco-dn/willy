@@ -230,10 +230,15 @@ describe('repos:add + repos:clone', () => {
       kind: 'git',
       badgeColor: '#22c55e'
     }
-    const existingProject = { id: 'repo:repo-setup-enterprise', displayName: 'Existing' }
+    const existingProject = {
+      id: 'repo:repo-setup-enterprise',
+      displayName: 'Existing',
+      sourceRepoIds: [existing.id]
+    }
     const selectedProject = {
       id: 'github:github.acme-corp.com/acme/orca',
       displayName: 'Enterprise project',
+      sourceRepoIds: [],
       providerIdentity: {
         provider: 'github',
         owner: 'acme',
@@ -275,6 +280,11 @@ describe('repos:add + repos:clone', () => {
         host: 'github.acme-corp.com'
       }
     })
+    expect(mockStore.updateRepo).toHaveBeenCalledWith(
+      existing.id,
+      { explicitProjectId: selectedProject.id },
+      'local'
+    )
   })
 
   it('sets up a folder when the selected project exists only on another host', async () => {
@@ -296,6 +306,7 @@ describe('repos:add + repos:clone', () => {
             {
               id: 'github:github.acme.test/acme/orca',
               displayName: 'Orca',
+              sourceRepoIds: [],
               providerIdentity: {
                 provider: 'github',
                 owner: 'acme',
