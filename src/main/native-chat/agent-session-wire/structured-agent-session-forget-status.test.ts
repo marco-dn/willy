@@ -201,7 +201,8 @@ function attachContext(
 }
 
 const attachParams = {
-  envelope: { sessionId: SESSION, clientOperationId: 'op-1' }
+  envelope: { sessionId: SESSION, clientOperationId: 'op-1' },
+  location: ownerRecord().location
 } as unknown as Parameters<typeof attachStructuredAgentSession>[2]
 
 describe('a session that leaves the host without an explicit close', () => {
