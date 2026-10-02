@@ -1,3 +1,4 @@
+import { acquireSandboxLocalExecution } from '../sandbox/sandbox-execution-boundary'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
 import { UnsafeWindowsBatchArgumentsError } from '../win32-utils'
 import { terminateWindowsProcessTree } from '../windows-process-tree-kill'
@@ -58,9 +59,13 @@ export function runLocalSourceControlPlan(input: {
   const processClosed = new Promise<void>((resolve) => {
     markProcessClosed = resolve
   })
+  // Same lifetime as the Codex home lock; child listeners are detached on settle, so not those.
+  let releaseSandbox = (): void => {}
+  void processClosed.then(() => releaseSandbox())
   const result = new Promise<InternalTextGenerationResult>((resolve) => {
     let child: SpawnedSourceControlAgentProcess
     try {
+      releaseSandbox = acquireSandboxLocalExecution(cwd)
       child = input.spawnAgent({
         binary: plan.binary,
         args: plan.args,

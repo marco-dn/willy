@@ -1,3 +1,4 @@
+import { acquireSandboxLocalExecution } from '../sandbox/sandbox-execution-boundary'
 import { mergeCommandEnvironment } from '../../shared/command-environment'
 import type { CommandTemplateBackslash } from '../../shared/commit-message-prompt'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
@@ -62,9 +63,13 @@ export async function discoverModelsLocal(input: {
     const processClosed = new Promise<void>((resolve) => {
       markProcessClosed = resolve
     })
+    // Same lifetime as the Codex home lock; child listeners are detached on settle, so not those.
+    let releaseSandbox = (): void => {}
+    void processClosed.then(() => releaseSandbox())
     const result = new Promise<DiscoverCommitMessageModelsResult>((resolve) => {
       let child: SpawnedSourceControlAgentProcess
       try {
+        releaseSandbox = acquireSandboxLocalExecution(input.options.cwd ?? process.cwd())
         child = input.spawnAgent({
           binary: planned.plan.binary,
           args: planned.plan.args,
