@@ -11,6 +11,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
+import { SandboxCreationCredentials } from './SandboxCreationCredentials'
 
 const toolNames: Record<SandboxTool, string> = {
   uv: 'uv',
@@ -27,13 +28,19 @@ export function SandboxProvisionForm({
 }: {
   initial: SandboxProvisionRequest
   onClose: () => void
-  onSubmitted: (record: ManagedSandbox) => void
+  onSubmitted: (record: ManagedSandbox, configureGithub?: boolean) => void
   disabled?: boolean
 }): React.JSX.Element {
   useTranslation()
   const [request, setRequest] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  const [github, setGithub] = useState(false)
+  const [identity, setIdentity] = useState<{ name: string; email: string } | undefined>(
+    initial.gitName && initial.gitEmail
+      ? { name: initial.gitName, email: initial.gitEmail }
+      : undefined
+  )
   const create = request.mode === 'create'
   const submit = async () => {
     if (busy || disabled) {
@@ -42,8 +49,12 @@ export function SandboxProvisionForm({
     setBusy(true)
     setError(undefined)
     try {
-      const record = await window.api.sandboxes.provision(request)
-      onSubmitted(record)
+      const record = await window.api.sandboxes.provision({
+        ...request,
+        gitName: identity?.name,
+        gitEmail: identity?.email
+      })
+      onSubmitted(record, github)
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -172,10 +183,17 @@ export function SandboxProvisionForm({
             </div>
           ))}
         </fieldset>
+        <SandboxCreationCredentials
+          github={github}
+          onGithubChange={setGithub}
+          identity={identity}
+          onIdentityChange={setIdentity}
+          disabled={busy || disabled}
+        />
         <p className="text-xs text-muted-foreground">
           {translate(
             'settings.sandbox.networkNotice',
-            'Outbound TCP access is temporarily opened for installation, then the rule created by Willy is removed. Existing and organization policies are preserved. No credentials are requested.'
+            'Outbound TCP access is temporarily opened for installation, then the rule created by Willy is removed. Existing and organization policies are preserved.'
           )}
         </p>
         {error ? (

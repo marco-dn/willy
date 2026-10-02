@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { SANDBOX_TOOLS, type ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import { writeSecureJsonFileWithinLimit } from '../../shared/bounded-secure-json-file'
 import { readNodeFileSyncWithinLimit } from '../../shared/node-bounded-file-reader'
+import { sandboxGitIdentitySchema } from './sandbox-git-identity'
 
 const name = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.-]{1,62}$/)
 const tools = z.array(z.enum(SANDBOX_TOOLS)).max(SANDBOX_TOOLS.length)
@@ -17,10 +18,17 @@ export const provisionRequestSchema = z
       .refine((value) => !/\p{Cc}/u.test(value)),
     createMount: z.boolean(),
     tools,
+    gitName: sandboxGitIdentitySchema.optional(),
+    gitEmail: sandboxGitIdentitySchema.optional(),
     sandboxId: z.string().min(1).optional()
   })
   .strict()
+  .refine((value) => Boolean(value.gitName) === Boolean(value.gitEmail), {
+    message: 'Provide both Git author name and email.'
+  })
 const recordSchema = z.object({
+  gitName: sandboxGitIdentitySchema.optional(),
+  gitEmail: sandboxGitIdentitySchema.optional(),
   verification: z
     .object({
       checkedAt: z.number(),

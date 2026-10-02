@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createNonSecureContextUuid } from '../../../../shared/non-secure-context-uuid'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
 import {
@@ -38,6 +39,7 @@ export function SandboxCatalog({
   const mounted = useMountedRef()
   const [selected, setSelected] = useState<string>()
   const [request, setRequest] = useState<SandboxProvisionRequest>()
+  const [githubSetup, setGithubSetup] = useState<{ name: string; sessionId: string }>()
   const entries = sandboxCatalogEntries(sandboxes, records, available)
   const groups = [
     {
@@ -78,7 +80,10 @@ export function SandboxCatalog({
           initial={request}
           disabled={disabled}
           onClose={back}
-          onSubmitted={(record) => {
+          onSubmitted={(record, configureGithub) => {
+            if (configureGithub) {
+              setGithubSetup({ name: record.name, sessionId: createNonSecureContextUuid() })
+            }
             setRecords((previous) =>
               previous.filter((item) => item.name !== record.name).concat(record)
             )
@@ -179,6 +184,12 @@ export function SandboxCatalog({
                                 key={item.key}
                                 record={item.record}
                                 disabled={disabled}
+                                credentialSession={
+                                  githubSetup?.name === item.name
+                                    ? githubSetup.sessionId
+                                    : undefined
+                                }
+                                onCredentialsClosed={() => setGithubSetup(undefined)}
                                 onConfigure={() => {
                                   const record = item.record
                                   if (record) {
@@ -188,7 +199,9 @@ export function SandboxCatalog({
                                       mountPath: record.mountPath,
                                       sandboxId: record.sandboxId,
                                       createMount: false,
-                                      tools: record.tools
+                                      tools: record.tools,
+                                      gitName: record.gitName,
+                                      gitEmail: record.gitEmail
                                     })
                                   }
                                 }}

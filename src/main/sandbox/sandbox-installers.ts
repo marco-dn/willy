@@ -1,5 +1,7 @@
 import type { SandboxTool } from '../../shared/sandbox-provisioning-types'
 import { quotePosixShell } from '../../shared/wsl-login-shell-command'
+import { sandboxGithubSshScript } from './sandbox-github-ssh'
+import { sandboxGithubHttpsScript } from './sandbox-github-https'
 
 const installers: Record<Exclude<SandboxTool, 'orca-skills'>, { url: string; shell: string }> = {
   uv: { url: 'https://astral.sh/uv/install.sh', shell: 'sh' },
@@ -26,6 +28,8 @@ ${body}
 const bashPrompt = String.raw`PS1='\[\e[1;36m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\W\[\e[0m\]\$ '`
 export const baseInstaller = `sudo -n apt-get update
 sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential python3 git curl ca-certificates nodejs npm just zsh
+${sandboxGithubSshScript}
+${sandboxGithubHttpsScript}
 path_line='export PATH="$HOME/.local/bin:$PATH"'
 for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
   touch "$rc"
@@ -39,7 +43,7 @@ export function toolInstaller(tool: SandboxTool): string {
     return ['orchestration', 'orca-cli']
       .map(
         (skill) =>
-          `npx --yes skills add https://github.com/stablyai/orca --skill ${skill} -a claude-code -a codex -y --global`
+          `npx --yes skills add https://github.com/stablyai/orca --skill ${skill} -a claude-code -a codex -y --global </dev/null`
       )
       .join('\n')
   }

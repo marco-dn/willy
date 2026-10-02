@@ -3,6 +3,7 @@ import { SandboxLifecyclePanel } from './SandboxLifecyclePanel'
 import { SandboxProjectsPanel } from './SandboxProjectsPanel'
 import { useState } from 'react'
 import { SandboxAccessPanel } from './SandboxAccessPanel'
+import { SandboxCredentialTerminal } from './SandboxCredentialTerminal'
 import { translate } from '@/i18n/i18n'
 import type { ManagedSandbox } from '../../../../shared/sandbox-provisioning-types'
 import { Button } from '../ui/button'
@@ -11,15 +12,35 @@ import { sandboxPhaseCopy } from './sandbox-status-copy'
 export function SandboxProvisioningCard({
   record,
   disabled,
-  onConfigure
+  onConfigure,
+  credentialSession,
+  onCredentialsClosed
 }: {
   record: ManagedSandbox
   disabled: boolean
   onConfigure: () => void
+  credentialSession?: string
+  onCredentialsClosed?: () => void
 }): React.JSX.Element {
   const [accessOpen, setAccessOpen] = useState(false)
   return (
     <div className="space-y-2">
+      {credentialSession && record.sandboxId ? (
+        record.status === 'ready' ? (
+          <SandboxCredentialTerminal
+            target={{ name: record.name, id: record.sandboxId }}
+            sessionId={credentialSession}
+            onClose={() => onCredentialsClosed?.()}
+          />
+        ) : (
+          <p role="status" className="text-sm text-muted-foreground">
+            {translate(
+              'settings.sandbox.githubSetupPending',
+              'GitHub token setup will open after preparation completes.'
+            )}
+          </p>
+        )
+      ) : null}
       {record.sandboxId ? (
         <SandboxLifecyclePanel
           target={{ name: record.name, id: record.sandboxId }}

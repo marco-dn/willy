@@ -42,6 +42,25 @@ it('can leave the preparation form without changes', () => {
   expect(onClose).toHaveBeenCalledOnce()
   expect(provision).not.toHaveBeenCalled()
 })
+it('submits Git identity and requests a private GitHub prompt without sending a token', async () => {
+  const onSubmitted = vi.fn()
+  render(<SandboxProvisionForm initial={initial} onClose={vi.fn()} onSubmitted={onSubmitted} />)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'GitHub token' }))
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Git author identity' }))
+  fireEvent.change(screen.getByLabelText('Git author name'), { target: { value: 'Marco' } })
+  fireEvent.change(screen.getByLabelText('Git author email'), {
+    target: { value: 'marco@example.com' }
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Start provisioning' }))
+  await waitFor(() =>
+    expect(provision).toHaveBeenCalledWith({
+      ...initial,
+      gitName: 'Marco',
+      gitEmail: 'marco@example.com'
+    })
+  )
+  expect(onSubmitted).toHaveBeenCalledWith({}, true)
+})
 it('preserves the default optional tools for a new sandbox', () => {
   render(
     <SandboxProvisionForm

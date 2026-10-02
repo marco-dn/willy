@@ -11,6 +11,25 @@ import {
 
 describe('sandbox installer scripts', () => {
   it.skipIf(process.platform === 'win32')(
+    'installs both skills when the installer reads stdin from a streamed SSH script',
+    async () => {
+      const result = await runProcess({
+        program: '/bin/bash',
+        args: ['-s'],
+        input: `set -euo pipefail
+npx() { cat >/dev/null; printf '%s\\n' "$*"; }
+${toolInstaller('orca-skills')}
+printf 'installation-finished\\n'
+`,
+        timeoutMs: 5000
+      })
+      expect(result.code, result.stderr).toBe(0)
+      expect(result.stdout).toContain('--skill orchestration')
+      expect(result.stdout).toContain('--skill orca-cli')
+      expect(result.stdout).toContain('installation-finished')
+    }
+  )
+  it.skipIf(process.platform === 'win32')(
     'generates valid Bash for every stage and quoted mount paths',
     async () => {
       for (const body of [

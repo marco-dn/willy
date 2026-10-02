@@ -56,7 +56,7 @@ export async function openProvisioningNetwork(
       throw new Error('Temporary TCP rule could not be verified.')
     }
   }
-  for (const destination of ['example.net:443', 'example.net:80', 'github.com:22']) {
+  for (const destination of ['example.net:443', 'example.net:80', 'ssh.github.com:443']) {
     const check = z
       .object({ allowed: z.boolean() })
       .parse(

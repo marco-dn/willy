@@ -53,6 +53,10 @@ describe('temporary provisioning TCP rules', () => {
     const saved: ManagedSandbox[] = []
     const save = () => saved.push(structuredClone(state))
     await openProvisioningNetwork(f.run, state, save)
+    expect(f.run).toHaveBeenCalledWith(
+      ['policy', 'check', 'network', '--sandbox', 'demo', '--json', 'ssh.github.com:443'],
+      { expectedExitCodes: [0, 1] }
+    )
     expect(saved[0].network).toEqual({ beforeIds: [], createdIds: [], pending: true })
     expect(state.network?.createdIds).toEqual([ownId])
     await cleanupProvisioningNetwork(f.run, state, save)

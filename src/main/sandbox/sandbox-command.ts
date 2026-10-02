@@ -8,6 +8,12 @@ export type SandboxCommand = (
   options?: { expectedExitCodes: number[] }
 ) => Promise<string>
 export type SandboxAccess = { run: SandboxCommand; release: () => void }
+export type SandboxProvisioningDependencies = {
+  command: () => Promise<SandboxCommand>
+  ssh: typeof runSandboxSsh
+  registerTarget: (alias: string, previousId?: string) => Promise<string>
+  connectTarget: (id: string) => Promise<void>
+}
 export async function createSandboxCommand(): Promise<SandboxCommand> {
   const program = await resolveCommandOnLocalPath('sbx', { searchCurrentDirectory: false })
   if (!program) {

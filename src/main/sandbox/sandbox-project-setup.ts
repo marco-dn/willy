@@ -2,13 +2,8 @@ import { posix } from 'node:path'
 import { z } from 'zod'
 import { sandboxTargetSchema } from './sandbox-policy-response'
 import { sandboxContainsPath } from './sandbox-execution-policy'
+import { sandboxGitIdentitySchema as identity } from './sandbox-git-identity'
 
-const identity = z
-  .string()
-  .trim()
-  .min(1)
-  .max(256)
-  .refine((value) => !/\p{Cc}/u.test(value))
 export const sandboxProjectLinkSchema = z
   .object({
     target: sandboxTargetSchema,

@@ -1,4 +1,5 @@
 import { importSandboxRegistration } from './sandbox-import'
+import { sandboxGitIdentityScript } from './sandbox-git-identity'
 import { recoverSandboxProvisioningRecords } from './sandbox-provisioning-recovery'
 import { sandboxTargetSchema } from './sandbox-policy-response'
 import { randomUUID } from 'node:crypto'
@@ -12,7 +13,8 @@ import {
   createSandboxCommand,
   runSandboxSsh,
   type SandboxCommand,
-  type SandboxAccess
+  type SandboxAccess,
+  type SandboxProvisioningDependencies
 } from './sandbox-command'
 import { parseSbxInventory } from './sbx-response'
 import { cleanupProvisioningNetwork, openProvisioningNetwork } from './sandbox-network'
@@ -23,20 +25,13 @@ import {
   verificationScript,
   verifiedSandboxVersions
 } from './sandbox-installers'
-
-type Dependencies = {
-  command: () => Promise<SandboxCommand>
-  ssh: typeof runSandboxSsh
-  registerTarget: (alias: string, previousId?: string) => Promise<string>
-  connectTarget: (id: string) => Promise<void>
-}
 export class SandboxProvisioningManager {
   private busy = false
   private persistenceError: Error | undefined
   private recovery: Promise<void>
   constructor(
     private store: SandboxProvisioningStore,
-    private dependencies: Dependencies
+    private dependencies: SandboxProvisioningDependencies
   ) {
     this.recovery = recoverSandboxProvisioningRecords({
       list: () => this.store.list(),
@@ -174,6 +169,8 @@ export class SandboxProvisioningManager {
         mountPath,
         sandboxId: existing?.sandboxId ?? found?.id,
         tools: [...new Set(request.tools)],
+        gitName: request.gitName,
+        gitEmail: request.gitEmail,
         operationId: randomUUID(),
         status: 'provisioning',
         stage: 'sandbox',
@@ -256,7 +253,7 @@ export class SandboxProvisioningManager {
       this.stage(record, 'network')
       await openProvisioningNetwork(run, record, () => this.save(record))
       this.stage(record, 'base')
-      await remote(baseInstaller)
+      await remote(baseInstaller + sandboxGitIdentityScript(record.gitName, record.gitEmail))
       for (const tool of record.tools) {
         this.stage(record, tool)
         await remote(toolInstaller(tool))

@@ -98,6 +98,21 @@ function fixture() {
   }
 }
 describe('sandbox provisioning', () => {
+  it('configures Git identity on the sandbox host and saves it for resume', async () => {
+    const f = fixture()
+    await f.manager.provision({ ...f.request, gitName: 'Marco', gitEmail: 'marco@example.com' })
+    const record = await f.done()
+    expect(record.status).toBe('ready')
+    expect(record.gitName).toBe('Marco')
+    expect(record.gitEmail).toBe('marco@example.com')
+    expect(
+      f.dependencies.ssh.mock.calls.some(
+        ([, script]) =>
+          script.includes("git config --global user.name 'Marco'") &&
+          script.includes("git config --global user.email 'marco@example.com'")
+      )
+    ).toBe(true)
+  })
   it('creates, installs only selected tools, verifies and registers SSH', async () => {
     const f = fixture()
     await f.manager.provision(f.request)

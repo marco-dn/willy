@@ -10,6 +10,8 @@ export type SandboxProvisionRequest = {
   createMount: boolean
   tools: SandboxTool[]
   sandboxId?: string
+  gitName?: string
+  gitEmail?: string
 }
 export type SandboxImportRequest = { target: SandboxTarget; mountPath: string }
 export type SandboxProvisionStage =
@@ -22,6 +24,8 @@ export type SandboxProvisionStage =
   | 'connect'
   | 'cleanup'
 export type ManagedSandbox = {
+  gitName?: string
+  gitEmail?: string
   verification?: SandboxEnvironmentReport
   lifecycle?: SandboxLifecycleState
   name: string
