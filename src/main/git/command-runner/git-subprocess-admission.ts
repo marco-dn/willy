@@ -1,3 +1,4 @@
+import { acquireSandboxGitAdmission } from './sandbox-git-admission'
 import {
   GitAdmissionScheduler,
   type GitAdmissionGrant,
@@ -9,10 +10,11 @@ export * from '../../../shared/git-admission-scheduler'
 let scheduler = new GitAdmissionScheduler()
 
 export function acquireGitAdmission(request: GitAdmissionRequest): Promise<GitAdmissionGrant> {
-  if (process.env.ORCA_GIT_ADMISSION_DISABLED === '1') {
-    return Promise.resolve({ queueWaitMs: 0, release: () => {} })
-  }
-  return scheduler.acquire({ ...request, tier: resolveGitAdmissionTier(request.tier) })
+  return acquireSandboxGitAdmission(request, () =>
+    process.env.ORCA_GIT_ADMISSION_DISABLED === '1'
+      ? Promise.resolve({ queueWaitMs: 0, release: () => {} })
+      : scheduler.acquire({ ...request, tier: resolveGitAdmissionTier(request.tier) })
+  )
 }
 
 export function _resetGitAdmissionForTests(replacement = new GitAdmissionScheduler()): void {

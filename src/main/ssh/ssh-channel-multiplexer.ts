@@ -118,7 +118,13 @@ export class SshChannelMultiplexer {
   // a keepalive ack proves the relay round-trip without a full RPC.
   private livenessProbeWaiters: { succeed: () => void; fail: () => void }[] = []
 
-  constructor(transport: MultiplexerTransport) {
+  constructor(
+    transport: MultiplexerTransport,
+    private readonly admitRequest?: (
+      method: string,
+      params?: Record<string, unknown>
+    ) => Promise<() => void> | undefined
+  ) {
     this.transport = transport
     this.writer = new SshMultiplexerTransportWriter(
       transport,
@@ -225,6 +231,23 @@ export class SshChannelMultiplexer {
    * Send a JSON-RPC request and wait for the response.
    */
   async request(
+    method: string,
+    params?: Record<string, unknown>,
+    options?: SshMultiplexerRequestOptions
+  ): Promise<unknown> {
+    const admission = this.admitRequest?.(method, params)
+    if (!admission) {
+      return this.requestAdmitted(method, params, options)
+    }
+    const release = await admission
+    try {
+      return await this.requestAdmitted(method, params, options)
+    } finally {
+      release?.()
+    }
+  }
+
+  private async requestAdmitted(
     method: string,
     params?: Record<string, unknown>,
     options?: SshMultiplexerRequestOptions

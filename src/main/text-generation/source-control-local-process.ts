@@ -1,3 +1,4 @@
+import { acquireSandboxLocalExecution } from '../sandbox/sandbox-execution-boundary'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
 import { supervisedProviderSpawnFailure } from '../provider-process/provider-spawn-failure-report'
 import { stopSupervisedChildProcess } from '../provider-process/supervised-child-process-stop'
@@ -101,6 +102,8 @@ export function runLocalSourceControlPlan(input: {
   const processClosed = new Promise<void>((resolve) => {
     markProcessClosed = resolve
   })
+  let releaseSandbox = (): void => {}
+  void processClosed.then(() => releaseSandbox())
   const couldNotStart = `${plan.label} could not be started. Check the agent command in Settings and try again.`
   const result = new Promise<InternalTextGenerationResult>((resolve) => {
     let child: SpawnedSourceControlAgentProcess
@@ -113,6 +116,7 @@ export function runLocalSourceControlPlan(input: {
         resolve({ success: false, error: budgetFailure })
         return
       }
+      releaseSandbox = acquireSandboxLocalExecution(cwd)
       child = input.spawnAgent({
         binary: plan.binary,
         args: plan.args,

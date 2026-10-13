@@ -1,3 +1,4 @@
+import { withSandboxExecution } from '../../../sandbox/sandbox-execution-boundary'
 import { rejectPaneSpawnReservation, reserveIdlePaneSpawn } from '../pane/spawn-reservation'
 import { ptySizes } from '../delivery/visibility-state'
 import {
@@ -36,7 +37,7 @@ function restoreProvisionalPtySize(ctx: PtyIpcSpawnState): void {
   }
 }
 
-export async function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArgs) {
+async function runPtyIpcSpawnAdmitted(deps: PtySpawnIpcDeps, args: PtySpawnIpcArgs) {
   const ctx = createPtyIpcSpawnState(deps, args)
   const replacedPaneKey =
     args.replacesPtyId !== undefined ? resolveEarlyPaneSpawnReservationKey(args) : null
@@ -104,4 +105,8 @@ export async function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArg
     ctx.releaseWorktreeSpawn?.()
     ctx.finishTerminalInstall()
   }
+}
+
+export function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArgs) {
+  return withSandboxExecution(args, () => runPtyIpcSpawnAdmitted(deps, args))
 }

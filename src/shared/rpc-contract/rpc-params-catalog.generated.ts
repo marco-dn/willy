@@ -587,6 +587,11 @@ import {
   WorktreeTeardownMissingTerminalsParams
 } from './worktree-params'
 import { WorktreeAdoptProvisionedRoot } from './worktree-provisioned-root-params'
+import {
+  SandboxRuntimePath,
+  SandboxRuntimeProject,
+  SandboxRuntimeProjectSelector
+} from '../sandbox-runtime-contract'
 import { SkillBundleInstallRequestSchema } from '../skill-bundle-install-contract'
 import { SkillDeleteRequestSchema } from '../skill-delete-contract'
 import {
@@ -1175,6 +1180,10 @@ export const RPC_PARAMS_BY_METHOD = {
   'runtime.clientCapabilities.update': ClientCapabilitiesUpdate,
   'runtime.clientEvents.subscribe': null,
   'runtime.clientEvents.unsubscribe': ClientEventsUnsubscribeParams,
+  'sandbox.projectIdle': SandboxRuntimeProjectSelector,
+  'sandbox.registerProject': SandboxRuntimeProject,
+  'sandbox.unlinkProject': SandboxRuntimeProjectSelector,
+  'sandbox.verifyPath': SandboxRuntimePath,
   'session.tabs.activate': ActivateTab,
   'session.tabs.close': CloseTab,
   'session.tabs.closeLifecycle': CloseLifecycleTab,

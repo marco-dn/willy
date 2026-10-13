@@ -132,7 +132,15 @@ export function resolveWorkspaceCreationTarget(
     reposById.set(repo.id, candidates)
   }
   const actionableHostIds = input.actionableHostIds
-  const allSetups = model?.setups ?? []
+  const bindingByProject = new Map(
+    model?.projects
+      .filter((project) => project.sandboxBinding)
+      .map((project) => [project.id, project.sandboxBinding])
+  )
+  const allSetups = (model?.setups ?? []).filter((setup) => {
+    const binding = bindingByProject.get(setup.projectId)
+    return !binding || setup.id === binding.setupId
+  })
   const setups = actionableHostIds
     ? allSetups.filter((setup) => actionableHostIds.has(setup.hostId))
     : allSetups
@@ -226,6 +234,9 @@ export function resolveWorkspaceCreationTarget(
       : null
   const legacyRepo =
     focusedLegacyRepo ?? (legacyCandidates.length === 1 ? legacyCandidates[0] : null)
+  const boundLegacyProject = model?.projects.find(
+    (project) => repoId && project.sourceRepoIds.includes(repoId) && project.sandboxBinding
+  )
   let legacyTarget: WorkspaceCreationTarget | null = null
   if (legacyRepo) {
     const projectedLegacySetup = projectHostSetupProjectionFromRepos([legacyRepo]).setups[0]
@@ -235,7 +246,9 @@ export function resolveWorkspaceCreationTarget(
         (setup) =>
           setup.repoId === legacyRepo.id && setup.hostId === legacyHostId && isReadySetup(setup)
       ) ??
-      (!actionableHostIds || actionableHostIds.has(projectedLegacySetup.hostId)
+      (!boundLegacyProject &&
+      !bindingByProject.has(projectedLegacySetup.projectId) &&
+      (!actionableHostIds || actionableHostIds.has(projectedLegacySetup.hostId))
         ? projectedLegacySetup
         : null)
     legacyTarget = legacySetup ? createTarget(legacySetup, reposById) : null
@@ -243,6 +256,16 @@ export function resolveWorkspaceCreationTarget(
     // Why: duplicate repo ids across hosts leave no single legacy repo. Stay on the resolved id's
     // own setup instead of failing closed and letting the composer re-pick an arbitrary repo.
     legacyTarget = findReadySetupTarget(setups, reposById, (setup) => setup.repoId === repoId)
+  }
+  if (!legacyTarget && boundLegacyProject) {
+    const target = findReadySetupTarget(
+      setups,
+      reposById,
+      (setup) => setup.id === boundLegacyProject.sandboxBinding?.setupId
+    )
+    return target
+      ? { status: 'ready', target }
+      : { status: 'unavailable', reason: 'project-has-no-ready-setup' }
   }
   if (legacyTarget) {
     return { status: 'ready', target: legacyTarget }

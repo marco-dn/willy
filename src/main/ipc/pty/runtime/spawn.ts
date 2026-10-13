@@ -1,3 +1,4 @@
+import { withSandboxExecution } from '../../../sandbox/sandbox-execution-boundary'
 import type { AgentSessionClaimedSpawnResult } from '../../../../shared/agent-session-host-authority'
 import { isTerminalLeafId, makePaneKey } from '../../../../shared/stable-pane-id'
 import { isValidTerminalTabId } from '../../../../shared/terminal-tab-id'
@@ -49,7 +50,7 @@ function restoreProvisionalPtySize(ctx: ReturnType<typeof createRuntimePtySpawnS
   }
 }
 
-export async function spawnPtyFromRuntimeController(
+async function spawnPtyFromRuntimeControllerAdmitted(
   deps: PtyRuntimeControllerDeps,
   args: RuntimePtySpawnArgs
 ) {
@@ -123,4 +124,11 @@ export async function spawnPtyFromRuntimeController(
     ctx.releaseWorktreeSpawn?.()
     ctx.finishTerminalInstall()
   }
+}
+
+export function spawnPtyFromRuntimeController(
+  deps: PtyRuntimeControllerDeps,
+  args: RuntimePtySpawnArgs
+) {
+  return withSandboxExecution(args, () => spawnPtyFromRuntimeControllerAdmitted(deps, args))
 }

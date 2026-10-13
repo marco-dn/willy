@@ -8,6 +8,7 @@ import { recoverStructuredRewind } from './structured-rewind-recovery'
 
 import { randomUUID } from 'node:crypto'
 import { isFloatingWorkspaceId } from '../../../shared/floating-workspace-worktree'
+import { withSandboxAgentExecution } from '../../sandbox/sandbox-execution-boundary'
 import type {
   AgentSessionAttachResult,
   AgentSessionMutationResult,
@@ -77,6 +78,17 @@ export function attachStructuredAgentSession(
   callerKey: string,
   params: AgentSessionAttachParams,
   options: StructuredAgentSessionAttachOptions = {}
+): Promise<AgentSessionMutationResult<AgentSessionAttachResult>> {
+  return withSandboxAgentExecution(params.location, () =>
+    attachStructuredAgentSessionAdmitted(context, callerKey, params, options)
+  )
+}
+
+function attachStructuredAgentSessionAdmitted(
+  context: StructuredAgentSessionAttachContext,
+  callerKey: string,
+  params: AgentSessionAttachParams,
+  options: StructuredAgentSessionAttachOptions
 ): Promise<AgentSessionMutationResult<AgentSessionAttachResult>> {
   const sessionId = params.envelope.sessionId
   // Tracked from enqueue, not from its turn on the queue: a quit drains a queued attach before it

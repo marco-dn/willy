@@ -12,6 +12,8 @@ export type ResolveCommandOptions = {
   cwd?: string
   /** Stop after this many matches; defaults to the complete list. */
   maxResults?: number
+  /** Disable Windows' implicit current-directory search for host tools. */
+  searchCurrentDirectory?: boolean
 }
 
 // Why: Windows env keys are case-insensitive (PATH is usually stored as `Path`,
@@ -218,7 +220,11 @@ async function findLocalCommandPaths(
   const pathDirs = (readEnvCaseInsensitive(env, 'PATH') ?? '').split(delimiter)
   // Why: a slash short-circuits PATH (resolve the command directly), matching
   // which(1). On win32, where.exe searches the current directory first.
-  const searchDirs = hasPathSeparator ? [''] : isWin ? [cwd, ...pathDirs] : pathDirs
+  const searchDirs = hasPathSeparator
+    ? ['']
+    : isWin && options.searchCurrentDirectory !== false
+      ? [cwd, ...pathDirs]
+      : pathDirs
   const extensions = isWin ? getWindowsExtensions(env, command) : ['']
 
   const found: string[] = []

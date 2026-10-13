@@ -1,3 +1,4 @@
+import { withSandboxRuntimeRequest } from '../sandbox/sandbox-runtime-admission'
 import { getRuntimeEnvironmentStatus } from './runtime-environment-status-probe'
 import { getPreferredPairedRuntimeConnection } from '../../shared/runtime-environments'
 import { ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES } from '../../shared/electron-remote-runtime-client-capabilities'
@@ -61,79 +62,81 @@ export async function callRuntimeEnvironment(
   // environment, so a re-pair between enqueue and dispatch can change it.
   let endpoint = getPreferredPairedRuntimeConnection(environment).endpoint
   try {
-    return await enqueueRuntimeCall(
-      environment.id,
-      method,
-      async () => {
-        const currentEnvironment = await resolveManagedRuntimeEnvironment(
-          userDataPath,
-          environment.id
-        )
-        const revisionFailure = runtimeEnvironmentRevisionFailure(
-          currentEnvironment,
-          expectedEnvironmentPairingRevision,
-          method,
-          options?.expectedEnvironmentRuntimeId
-        )
-        if (revisionFailure) {
-          return revisionFailure
-        }
-        const pairedConnection = getPreferredPairedRuntimeConnection(currentEnvironment)
-        endpoint = pairedConnection.endpoint
-        const effectiveTimeoutMs = timeoutMs ?? DEFAULT_REMOTE_RUNTIME_TIMEOUT_MS
-        const sharedControlEnvelope = shouldUseSharedControlEnvelope(method, params, envelope)
-        if (envelope && !sharedControlEnvelope) {
+    return await withSandboxRuntimeRequest(environment.id, method, params, () =>
+      enqueueRuntimeCall(
+        environment.id,
+        method,
+        async () => {
+          const currentEnvironment = await resolveManagedRuntimeEnvironment(
+            userDataPath,
+            environment.id
+          )
+          const revisionFailure = runtimeEnvironmentRevisionFailure(
+            currentEnvironment,
+            expectedEnvironmentPairingRevision,
+            method,
+            options?.expectedEnvironmentRuntimeId
+          )
+          if (revisionFailure) {
+            return revisionFailure
+          }
+          const pairedConnection = getPreferredPairedRuntimeConnection(currentEnvironment)
+          endpoint = pairedConnection.endpoint
+          const effectiveTimeoutMs = timeoutMs ?? DEFAULT_REMOTE_RUNTIME_TIMEOUT_MS
+          const sharedControlEnvelope = shouldUseSharedControlEnvelope(method, params, envelope)
+          if (envelope && !sharedControlEnvelope) {
+            const response = await sendRemoteRuntimeRequestAbortable(
+              pairedConnection,
+              method,
+              params,
+              effectiveTimeoutMs,
+              envelope,
+              options?.signal,
+              ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
+            )
+            markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
+            return response
+          }
+          if (shouldUseCachedRequestConnection(method)) {
+            const response = await sendRemoteRuntimeConnectionRequestAbortable(
+              currentEnvironment.id,
+              pairedConnection,
+              method,
+              params,
+              effectiveTimeoutMs,
+              options?.signal
+            )
+            markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
+            return response
+          }
+          if (shouldRouteCallBySupport(method)) {
+            return executeSupportRoutedCall({
+              userDataPath,
+              environment: currentEnvironment,
+              method,
+              params,
+              timeoutMs: effectiveTimeoutMs,
+              expectedPairingRevision: expectedEnvironmentPairingRevision,
+              envelope: sharedControlEnvelope,
+              signal: options?.signal
+            })
+          }
+          // Why: startup/control-plane RPCs use the proven one-shot path so repo
+          // hydration cannot be coupled to a stale terminal-control connection.
           const response = await sendRemoteRuntimeRequestAbortable(
             pairedConnection,
             method,
             params,
             effectiveTimeoutMs,
-            envelope,
+            sharedControlEnvelope,
             options?.signal,
             ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
           )
           markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
           return response
-        }
-        if (shouldUseCachedRequestConnection(method)) {
-          const response = await sendRemoteRuntimeConnectionRequestAbortable(
-            currentEnvironment.id,
-            pairedConnection,
-            method,
-            params,
-            effectiveTimeoutMs,
-            options?.signal
-          )
-          markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
-          return response
-        }
-        if (shouldRouteCallBySupport(method)) {
-          return executeSupportRoutedCall({
-            userDataPath,
-            environment: currentEnvironment,
-            method,
-            params,
-            timeoutMs: effectiveTimeoutMs,
-            expectedPairingRevision: expectedEnvironmentPairingRevision,
-            envelope: sharedControlEnvelope,
-            signal: options?.signal
-          })
-        }
-        // Why: startup/control-plane RPCs use the proven one-shot path so repo
-        // hydration cannot be coupled to a stale terminal-control connection.
-        const response = await sendRemoteRuntimeRequestAbortable(
-          pairedConnection,
-          method,
-          params,
-          effectiveTimeoutMs,
-          sharedControlEnvelope,
-          options?.signal,
-          ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
-        )
-        markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
-        return response
-      },
-      options?.signal
+        },
+        options?.signal
+      )
     )
   } catch (error) {
     if (error instanceof Error && error.name !== 'AbortError') {

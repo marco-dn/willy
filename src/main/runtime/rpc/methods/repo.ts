@@ -1,3 +1,4 @@
+import { SANDBOX_RUNTIME_METHODS } from './sandbox'
 import { defineMethod } from '../core'
 import { PROJECT_RUNTIME_METHODS } from './project-runtime-rpc-methods'
 import { FOLDER_WORKSPACE_METHODS } from './folder-workspace'
@@ -30,6 +31,7 @@ import {
 import { RepoAddRemote } from '../../../../shared/rpc-contract/ssh-params'
 
 export const REPO_METHODS = [
+  ...SANDBOX_RUNTIME_METHODS,
   defineMethod({
     name: 'repo.list',
     permission: 'workspace',

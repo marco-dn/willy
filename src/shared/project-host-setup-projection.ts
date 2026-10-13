@@ -106,8 +106,11 @@ export function isProjectRemoteIdentityPending(
 const HOST_LOCAL_PROJECT_ID_PREFIX = 'repo:'
 
 export function getProjectIdentityKey(
-  repo: Pick<Repo, 'id' | 'upstream' | 'repoIcon' | 'gitRemoteIdentity'>
+  repo: Pick<Repo, 'id' | 'upstream' | 'repoIcon' | 'gitRemoteIdentity' | 'explicitProjectId'>
 ): string {
+  if (typeof repo.explicitProjectId === 'string' && repo.explicitProjectId.trim()) {
+    return repo.explicitProjectId
+  }
   const identity = getProjectProviderIdentity(repo)
   if (identity) {
     return getProjectIdForProviderIdentity(identity)
@@ -133,7 +136,7 @@ export function getProjectIdForProviderIdentity(identity: ProjectProviderIdentit
 }
 
 function getProjectId(
-  repo: Pick<Repo, 'id' | 'upstream' | 'repoIcon' | 'gitRemoteIdentity'>
+  repo: Pick<Repo, 'id' | 'upstream' | 'repoIcon' | 'gitRemoteIdentity' | 'explicitProjectId'>
 ): string {
   return getProjectIdentityKey(repo)
 }

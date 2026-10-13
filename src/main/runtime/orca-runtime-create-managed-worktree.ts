@@ -3,6 +3,7 @@ import { OrcaRuntimeWithGetWorktreeTerminalProvisioningHost } from './orca-runti
 import type { RuntimeManagedWorktreeCreateArgs } from './runtime-managed-worktree-create-types'
 import type { CreateWorktreeResult } from '../../shared/worktree/create-types'
 import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
+import { withSandboxRepoExecution } from '../sandbox/sandbox-execution-boundary'
 import { isFolderRepo } from '../../shared/repo-kind'
 import { resolveWorktreeCreateRoute } from '../worktree-create-execution-host-route'
 import { ExecutionHostNotDispatchableError } from '../providers/execution-host-provider-dispatch'
@@ -22,11 +23,13 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
   async createManagedWorktree(
     args: RuntimeManagedWorktreeCreateArgs
   ): Promise<CreateWorktreeResult> {
-    // Re-arm a consumed checkout after terminal startup, including failed creates.
     const rearm: PreparationRearmHolder = { fire: () => {} }
     try {
-      return await trackRuntimeWorkspaceCreate(args, (events) =>
-        this.performManagedWorktreeCreate(args, rearm, events)
+      const repo = await this.resolveRepoSelector(args.repoSelector)
+      return await withSandboxRepoExecution(repo, () =>
+        trackRuntimeWorkspaceCreate(args, (events) =>
+          this.performManagedWorktreeCreate(args, rearm, events)
+        )
       )
     } finally {
       rearm.fire()

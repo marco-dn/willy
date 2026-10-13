@@ -45,7 +45,8 @@ import {
   renderDeveloperPermissionsSettingsSection,
   renderPrivacySettingsSection,
   renderServersSettingsSection,
-  renderSshSettingsSection
+  renderSshSettingsSection,
+  renderSandboxSettingsSection
 } from './settings-remote-security-section-renderers'
 import {
   renderAdvancedSettingsSection,
@@ -157,6 +158,7 @@ export function renderSettingsPage(context: SettingsRenderContext): React.JSX.El
                 {renderStatsSettingsSection(context)}
                 {renderServersSettingsSection(context)}
                 {renderSshSettingsSection(context)}
+                {renderSandboxSettingsSection(context)}
                 {renderDeveloperPermissionsSettingsSection(context)}
                 {renderPrivacySettingsSection(context)}
                 {renderAdvancedSettingsSection(context)}

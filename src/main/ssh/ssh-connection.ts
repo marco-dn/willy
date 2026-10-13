@@ -1,3 +1,4 @@
+import { assertSandboxSshConnectionAllowed } from '../sandbox/sandbox-lifecycle-guard'
 /* eslint-disable max-lines -- Why: SSH connection lifecycle, credential retries, reconnect policy, and transport fallback are intentionally co-located so state transitions stay auditable in one file. */
 import { Client as SshClient } from 'ssh2'
 import {
@@ -529,6 +530,7 @@ export class SshConnection {
   }
 
   private async attemptConnect(connectGeneration = ++this.connectGeneration): Promise<void> {
+    await assertSandboxSshConnectionAllowed(this.target)
     this.credentialAbortController.abort()
     this.credentialAbortController = new AbortController()
     this.setState('connecting')

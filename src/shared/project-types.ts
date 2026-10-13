@@ -1,3 +1,4 @@
+import type { SandboxProjectBinding } from './sandbox-project-types'
 import type { ExecutionHostId } from './execution-host'
 import type { RepoIcon } from './repo-icon'
 import type { GitRemoteIdentity } from './git-remote-identity'
@@ -23,6 +24,7 @@ export type Project = {
   gitRemoteIdentity?: GitRemoteIdentity
   /** Local Windows projects inherit the global runtime default unless this override is set. */
   localWindowsRuntimePreference?: LocalWindowsRuntimePreference
+  sandboxBinding?: SandboxProjectBinding | null
   sourceRepoIds: string[]
   createdAt: number
   updatedAt: number

@@ -1,3 +1,4 @@
+import { withSandboxAgentExecution } from '../../sandbox/sandbox-execution-boundary'
 import { isDeepStrictEqual } from 'node:util'
 import { waitForPromiseWithSignal } from '../../../shared/abort-signal-reason'
 import type {
@@ -47,7 +48,7 @@ function handOverStartCatalogListing(
 
 /** A reservation with no process behind it is only a promise to spawn; the
  * adapter makes it real and the store then grants the writer. */
-export async function acquireOwner(
+async function acquireOwnerAdmitted(
   input: AttachFlowInput,
   record: AgentSessionRecord
 ): Promise<{
@@ -147,4 +148,11 @@ export async function acquireOwner(
     }
     return rethrowAfterAgentSessionAcquisitionCleanup(input.adapter, record.sessionId, error)
   }
+}
+
+export function acquireOwner(
+  input: AttachFlowInput,
+  record: AgentSessionRecord
+): ReturnType<typeof acquireOwnerAdmitted> {
+  return withSandboxAgentExecution(record.location, () => acquireOwnerAdmitted(input, record))
 }

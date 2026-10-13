@@ -88,7 +88,24 @@ export async function fetchProjectHostSetupCompatibility(
     return {
       // Why projects too: the same wire response carries them, and a remote host on another
       // Orca version can publish a row whose declared field types do not hold.
-      projects: normalizeProjectRows([...projectResponse.projects]),
+      projects: normalizeProjectRows([...projectResponse.projects]).map((project) => {
+        const binding = project.sandboxBinding
+        if (!binding || binding.executionHostId !== 'local') {
+          return project
+        }
+        const setup = setupResponse.setups.find((row) => row.id === binding.setupId)
+        return {
+          ...project,
+          sandboxBinding: {
+            ...binding,
+            executionHostId: `runtime:${target.environmentId}` as const,
+            runtimeEnvironmentId: target.environmentId,
+            setupId: setup
+              ? adoptFromEndpoint(target, { kind: 'projectHostSetup', row: setup }).id
+              : binding.setupId
+          }
+        }
+      }),
       setups: setupResponse.setups.map((setup) =>
         adoptFromEndpoint(target, { kind: 'projectHostSetup', row: setup })
       )

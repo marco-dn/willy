@@ -1,3 +1,5 @@
+import { withSandboxExecution } from '../../../sandbox/sandbox-execution-boundary'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { ipcMain, app } from 'electron'
 import { getLocalWorktreeCatalogVersion } from '../../../local-worktree-scan-generation'
 import type {
@@ -39,84 +41,96 @@ export function registerWorktreeCreateHandlers(context: WorktreeIpcContext): voi
     async (_event, rawArgs: CreateWorktreeArgs): Promise<CreateWorktreeResult> => {
       const args = normalizeLinkedWorkItemFields(rawArgs)
       // Why span here: parent the child git spans for the trace tree; don't attach branch name/remote URL (user content) — repo ID is the safer correlator.
-      return withWorktreeSpan({ stage: 'create' }, async (span) => {
-        const repo = store.getRepo(args.repoId)
-        if (!repo) {
-          throw new Error(`Repo not found: ${args.repoId}`)
-        }
-
-        const automationProvenance = resolveAutomationWorkspaceProvenance({
-          authority: runtime,
-          repoSelector: args.repoId,
-          repo,
-          request: args.automationProvenanceRequest
-        })
-        const createArgs: CreateWorktreeArgsWithSystemProvenance = {
-          ...args,
-          automationProvenance
-        }
-
-        let result: CreateWorktreeResult
-        // The handler owns the events so a failed create can still say where it died.
-        const telemetry = beginWorkspaceCreateTelemetry({
-          source: args.telemetrySource,
-          entryPoint: 'app',
-          repoPath: repo.path,
-          fromExistingBranch: typeof args.baseBranch === 'string' && args.baseBranch.length > 0,
-          isFolder: isFolderRepo(repo)
-        })
-        try {
-          // Why: wrap only the helpers; the pre-validation throws above are IPC-shape bugs, not the git/filesystem failures the funnel tracks.
-          if (isFolderRepo(repo)) {
-            // A folder workspace is a registration, not a filesystem create, so it is host-agnostic.
-            result = createFolderWorkspace(createArgs, repo, store)
-          } else {
-            // Resolve the host rather than reading the raw field: an `executionHostId: 'ssh:*'`-only
-            // row read as local here and ran `git worktree add` on the client against a remote path,
-            // while the runtime sibling on the same repo already resolved.
-            const createRoute = requireWorktreeCreateRoute(repo)
-            if (createRoute.kind === 'ssh') {
-              // Tagged before the refusal so the failed-create event keeps naming its host.
-              telemetry.timing.recordExecutionHost('ssh')
-              throw new SshHostNotServedError(createRoute.connectionId)
+      const selectedRepo = store.getRepo(args.repoId)
+      if (!selectedRepo) {
+        throw new Error(`Repo not found: ${args.repoId}`)
+      }
+      return withSandboxExecution(
+        {
+          repoId: selectedRepo.id,
+          cwd: selectedRepo.path,
+          hostId: getRepoExecutionHostId(selectedRepo)
+        },
+        () =>
+          withWorktreeSpan({ stage: 'create' }, async (span) => {
+            const repo = store.getRepo(args.repoId)
+            if (!repo) {
+              throw new Error(`Repo not found: ${args.repoId}`)
             }
-            result = await createLocalWorktree(
-              createArgs,
+
+            const automationProvenance = resolveAutomationWorkspaceProvenance({
+              authority: runtime,
+              repoSelector: args.repoId,
               repo,
-              store,
-              mainWindow,
-              runtime,
-              telemetry.timing
-            )
-          }
-        } catch (error) {
-          releaseAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
-          telemetry.failed(error)
-          throw error
-        }
-        finishAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
-        if (result.timing) {
-          addWorktreeCreatePhaseAttributes(span, result.timing)
-        }
+              request: args.automationProvenanceRequest
+            })
+            const createArgs: CreateWorktreeArgsWithSystemProvenance = {
+              ...args,
+              automationProvenance
+            }
 
-        // Why: reaching here means create succeeded (helpers throw); skip a separate workspace_initialized (telemetry-plan.md§Deferred); never send the branch name.
-        telemetry.succeeded(result.timing)
+            let result: CreateWorktreeResult
+            // The handler owns the events so a failed create can still say where it died.
+            const telemetry = beginWorkspaceCreateTelemetry({
+              source: args.telemetrySource,
+              entryPoint: 'app',
+              repoPath: repo.path,
+              fromExistingBranch: typeof args.baseBranch === 'string' && args.baseBranch.length > 0,
+              isFolder: isFolderRepo(repo)
+            })
+            try {
+              // Why: wrap only the helpers; the pre-validation throws above are IPC-shape bugs, not the git/filesystem failures the funnel tracks.
+              if (isFolderRepo(repo)) {
+                // A folder workspace is a registration, not a filesystem create, so it is host-agnostic.
+                result = createFolderWorkspace(createArgs, repo, store)
+              } else {
+                // Resolve the host rather than reading the raw field: an `executionHostId: 'ssh:*'`-only
+                // row read as local here and ran `git worktree add` on the client against a remote path,
+                // while the runtime sibling on the same repo already resolved.
+                const createRoute = requireWorktreeCreateRoute(repo)
+                if (createRoute.kind === 'ssh') {
+                  // Tagged before the refusal so the failed-create event keeps naming its host.
+                  telemetry.timing.recordExecutionHost('ssh')
+                  throw new SshHostNotServedError(createRoute.connectionId)
+                }
+                result = await createLocalWorktree(
+                  createArgs,
+                  repo,
+                  store,
+                  mainWindow,
+                  runtime,
+                  telemetry.timing
+                )
+              }
+            } catch (error) {
+              releaseAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
+              telemetry.failed(error)
+              throw error
+            }
+            finishAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
+            if (result.timing) {
+              addWorktreeCreatePhaseAttributes(span, result.timing)
+            }
 
-        if (isFolderRepo(repo)) {
-          notifyWorktreesChanged(mainWindow, repo.id)
-        }
+            // Why: reaching here means create succeeded (helpers throw); skip a separate workspace_initialized (telemetry-plan.md§Deferred); never send the branch name.
+            telemetry.succeeded(result.timing)
 
-        options?.onWorktreeLifecycle?.({
-          kind: 'created',
-          worktreeId: result.worktree.id,
-          path: result.worktree.path,
-          branch: result.worktree.branch
-        })
+            if (isFolderRepo(repo)) {
+              notifyWorktreesChanged(mainWindow, repo.id)
+            }
 
-        // Why stamped last: the create's own change notification bumped the generation, so this
-        // names the catalog that contains the new worktree.
-        return { ...result, catalogVersion: getLocalWorktreeCatalogVersion(repo.id) }
-      })
+            options?.onWorktreeLifecycle?.({
+              kind: 'created',
+              worktreeId: result.worktree.id,
+              path: result.worktree.path,
+              branch: result.worktree.branch
+            })
+
+            // Why stamped last: the create's own change notification bumped the generation, so this
+            // names the catalog that contains the new worktree.
+            return { ...result, catalogVersion: getLocalWorktreeCatalogVersion(repo.id) }
+          })
+      )
     }
   )
 
@@ -124,52 +138,64 @@ export function registerWorktreeCreateHandlers(context: WorktreeIpcContext): voi
     'worktrees:adoptProvisionedRoot',
     async (_event, rawArgs: AdoptProvisionedRootArgs): Promise<CreateWorktreeResult> => {
       const args = normalizeLinkedWorkItemFields(rawArgs)
-      return withWorktreeSpan({ stage: 'create' }, async () => {
-        const repo = findExactRepoOwner(store, args.repoId, args.executionHostId)
-        if (!repo || isFolderRepo(repo)) {
-          throw new Error('Provisioned-root repository ownership is missing or ambiguous.')
-        }
-        const sourceParse = workspaceSourceSchema.safeParse(args.telemetrySource)
-        const source: WorkspaceSource = sourceParse.success ? sourceParse.data : 'unknown'
-        const automationProvenance = resolveAutomationWorkspaceProvenance({
-          authority: runtime,
-          repoSelector: args.repoId,
-          repo,
-          request: args.automationProvenanceRequest
-        })
-        let result: CreateWorktreeResult
-        try {
-          result = await adoptProvisionedRootSshCheckout({
-            userDataPath: app.getPath('userData'),
-            request: { ...args, automationProvenance },
-            repo,
-            store,
-            isRepoCurrent: () => isCapturedRepoCurrent(store, repo, args.executionHostId)
+      const selectedRepo = findExactRepoOwner(store, args.repoId, args.executionHostId)
+      if (!selectedRepo) {
+        throw new Error('Provisioned-root repository ownership is missing or ambiguous.')
+      }
+      return withSandboxExecution(
+        {
+          repoId: selectedRepo.id,
+          cwd: selectedRepo.path,
+          hostId: getRepoExecutionHostId(selectedRepo)
+        },
+        () =>
+          withWorktreeSpan({ stage: 'create' }, async () => {
+            const repo = findExactRepoOwner(store, args.repoId, args.executionHostId)
+            if (!repo || isFolderRepo(repo)) {
+              throw new Error('Provisioned-root repository ownership is missing or ambiguous.')
+            }
+            const sourceParse = workspaceSourceSchema.safeParse(args.telemetrySource)
+            const source: WorkspaceSource = sourceParse.success ? sourceParse.data : 'unknown'
+            const automationProvenance = resolveAutomationWorkspaceProvenance({
+              authority: runtime,
+              repoSelector: args.repoId,
+              repo,
+              request: args.automationProvenanceRequest
+            })
+            let result: CreateWorktreeResult
+            try {
+              result = await adoptProvisionedRootSshCheckout({
+                userDataPath: app.getPath('userData'),
+                request: { ...args, automationProvenance },
+                repo,
+                store,
+                isRepoCurrent: () => isCapturedRepoCurrent(store, repo, args.executionHostId)
+              })
+            } catch (error) {
+              releaseAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
+              track('workspace_create_failed', {
+                source,
+                error_class: classifyWorkspaceCreateError(error),
+                ...getCohortAtEmit()
+              })
+              throw error
+            }
+            finishAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
+            track('workspace_created', {
+              source,
+              from_existing_branch: false,
+              ...getCohortAtEmit()
+            })
+            notifyWorktreesChanged(mainWindow, repo.id)
+            options?.onWorktreeLifecycle?.({
+              kind: 'created',
+              worktreeId: result.worktree.id,
+              path: result.worktree.path,
+              branch: result.worktree.branch
+            })
+            return { ...result, catalogVersion: getLocalWorktreeCatalogVersion(repo.id) }
           })
-        } catch (error) {
-          releaseAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
-          track('workspace_create_failed', {
-            source,
-            error_class: classifyWorkspaceCreateError(error),
-            ...getCohortAtEmit()
-          })
-          throw error
-        }
-        finishAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
-        track('workspace_created', {
-          source,
-          from_existing_branch: false,
-          ...getCohortAtEmit()
-        })
-        notifyWorktreesChanged(mainWindow, repo.id)
-        options?.onWorktreeLifecycle?.({
-          kind: 'created',
-          worktreeId: result.worktree.id,
-          path: result.worktree.path,
-          branch: result.worktree.branch
-        })
-        return { ...result, catalogVersion: getLocalWorktreeCatalogVersion(repo.id) }
-      })
+      )
     }
   )
 }

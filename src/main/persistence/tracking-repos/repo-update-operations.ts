@@ -100,6 +100,7 @@ export class RepoUpdatePersistenceOperations {
         | 'projectGroupId'
         | 'projectGroupOrder'
         | 'projectHostSetupMethod'
+        | 'explicitProjectId'
       >
     > & {
       externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null

@@ -98,7 +98,7 @@ export function assertNotManagedServerHost(targetId: string): void {
   }
 }
 
-function addSshTarget(input: SshTargetCreateInput): SshTargetAddResult {
+export function addRegisteredSshTarget(input: SshTargetCreateInput): SshTargetAddResult {
   const target = getSshTargetRegistryStore()!.addTarget(omitRendererSshTargetGeneration(input))
   // Why: re-adding a removed host can re-adopt orphaned workspaces; refresh the renderer's repo list so they move back onto the live host.
   const repoReadoptions = takeRepoReadoptions()
@@ -139,7 +139,11 @@ async function removeSshTarget(id: string): Promise<void> {
 
 export function registerSshTargetCrudHandlers(): void {
   // Why: paired clients manage this host's targets over RPC with the same rules as SSH settings.
-  setSshTargetMutations({ add: addSshTarget, update: updateSshTarget, remove: removeSshTarget })
+  setSshTargetMutations({
+    add: addRegisteredSshTarget,
+    update: updateSshTarget,
+    remove: removeSshTarget
+  })
 
   ipcMain.handle('ssh:listTargets', () => {
     return getSshTargetRegistryStore()!.listTargets()
@@ -150,7 +154,7 @@ export function registerSshTargetCrudHandlers(): void {
   })
 
   ipcMain.handle('ssh:addTarget', (_event, args: { target: SshTargetCreateInput }) =>
-    addSshTarget(args.target)
+    addRegisteredSshTarget(args.target)
   )
 
   ipcMain.handle(

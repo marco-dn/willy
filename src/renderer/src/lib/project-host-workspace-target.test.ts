@@ -474,3 +474,58 @@ describe('project-host workspace target resolution', () => {
     })
   })
 })
+
+describe('sandbox-only workspace selection', () => {
+  const repos = [makeRepo('local'), makeRepo('remote', { connectionId: 'sandbox' })]
+  const project = makeProject('p', ['local', 'remote'], {
+    sandboxBinding: {
+      sandboxId: 'id',
+      sandboxName: 'demo',
+      sshTargetId: 'sandbox',
+      setupId: 'sandbox-setup',
+      repoId: 'remote',
+      mountPath: '/shared',
+      projectPath: '/shared/repo'
+    }
+  })
+  const input = {
+    eligibleRepos: repos,
+    projects: [project],
+    projectHostSetups: [
+      makeSetup('local-setup', 'p', 'local', 'local'),
+      makeSetup('sandbox-setup', 'p', 'ssh:sandbox', 'remote')
+    ]
+  }
+  it('rejects an explicitly selected old local environment', () => {
+    expect(
+      resolveWorkspaceCreationTarget({ ...input, projectHostSetupId: 'local-setup' }).status
+    ).toBe('unavailable')
+    expect(
+      resolveWorkspaceCreationTarget({ ...input, projectId: 'p', hostId: 'local' }).status
+    ).toBe('unavailable')
+  })
+  it('resolves a previous local repo selection to the sandbox setup', () => {
+    expect(resolveWorkspaceCreationTarget({ ...input, draftRepoId: 'local' })).toMatchObject({
+      status: 'ready',
+      target: { repoId: 'remote', hostId: 'ssh:sandbox' }
+    })
+  })
+  it('never selects a local fallback when the sandbox is not actionable', () => {
+    expect(
+      resolveWorkspaceCreationTarget({
+        ...input,
+        draftRepoId: 'local',
+        actionableHostIds: new Set<ExecutionHostId>(['local'])
+      }).status
+    ).toBe('unavailable')
+  })
+  it('restores ordinary selection when unlinked', () => {
+    expect(
+      resolveWorkspaceCreationTarget({
+        ...input,
+        projects: [{ ...project, sandboxBinding: undefined }],
+        projectHostSetupId: 'local-setup'
+      })
+    ).toMatchObject({ status: 'ready', target: { hostId: 'local' } })
+  })
+})

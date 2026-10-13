@@ -8,10 +8,13 @@ export type ProjectIdentitySuccession = {
 }
 
 function carryUserState(projected: Project, previous: Project): Project {
-  return previous.localWindowsRuntimePreference
+  return previous.localWindowsRuntimePreference || 'sandboxBinding' in previous
     ? {
         ...projected,
-        localWindowsRuntimePreference: previous.localWindowsRuntimePreference,
+        ...(previous.localWindowsRuntimePreference
+          ? { localWindowsRuntimePreference: previous.localWindowsRuntimePreference }
+          : {}),
+        ...('sandboxBinding' in previous ? { sandboxBinding: previous.sandboxBinding } : {}),
         updatedAt: Math.max(projected.updatedAt, previous.updatedAt)
       }
     : projected

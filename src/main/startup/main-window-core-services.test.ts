@@ -5,6 +5,7 @@ const {
   initTccPromptNoticeMock,
   preserveAgentAuthBeforeRestartMock,
   registerCoreHandlersMock,
+  registerSandboxHandlersMock,
   state,
   store
 } = vi.hoisted(() => {
@@ -18,6 +19,7 @@ const {
     initTccPromptNoticeMock: vi.fn(),
     preserveAgentAuthBeforeRestartMock: vi.fn(() => Promise.resolve()),
     registerCoreHandlersMock: vi.fn(),
+    registerSandboxHandlersMock: vi.fn(),
     state: {
       store,
       runtime: {},
@@ -53,6 +55,7 @@ vi.mock('../ipc/register-core-handlers/register-core-handlers', () => ({
 vi.mock('../window/attach-main-window-services', () => ({
   attachMainWindowServices: attachMainWindowServicesMock
 }))
+vi.mock('../ipc/sandboxes', () => ({ registerSandboxHandlers: registerSandboxHandlersMock }))
 vi.mock('../macos-tcc-prompt-notice', () => ({ initTccPromptNotice: initTccPromptNoticeMock }))
 vi.mock('../updater', () => ({ resolveUpdateInstallMode: vi.fn(() => 'interactive') }))
 vi.mock('./main-process-state', () => ({ mainProcessState: state }))
@@ -123,4 +126,19 @@ describe('main window profile-state update preparation', () => {
       expect(options).toHaveProperty('onBeforeUpdateQuitFailure', 'abort')
     }
   )
+
+  it('registers sandbox handlers for the attached window right after its services', () => {
+    const window = { webContents: { id: 17 } }
+
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: mocked BrowserWindow only needs webContents for this composition-root wiring test.
+    attachMainWindowCoreServices(window as never, {
+      markExpectedRendererReload: vi.fn(),
+      recordRendererReload: vi.fn()
+    })
+
+    expect(registerSandboxHandlersMock).toHaveBeenCalledWith(store, window)
+    expect(attachMainWindowServicesMock.mock.invocationCallOrder[0]).toBeLessThan(
+      registerSandboxHandlersMock.mock.invocationCallOrder[0]
+    )
+  })
 })

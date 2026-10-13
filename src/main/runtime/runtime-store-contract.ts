@@ -3,6 +3,8 @@ import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { VoiceSettings } from '../../shared/speech-types'
 
 export type RuntimeStore = {
+  setProjectSandboxBinding?: Store['setProjectSandboxBinding']
+
   getRepos: Store['getRepos']
   getRepo: Store['getRepo']
   addRepo: Store['addRepo']

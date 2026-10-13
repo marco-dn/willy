@@ -1,3 +1,4 @@
+import { associateRepoWithExistingProject } from '../../project-repo-association'
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { Store } from '../../persistence'
@@ -50,21 +51,24 @@ function alignRepoWithRequestedProject(
     const project = store.getProjects().find((entry) => entry.id === projectId)
     // Why: the selected project can exist only on the source host, so its structured identity travels with the request.
     const identity = project?.providerIdentity ?? requestedProviderIdentity
-    if (!identity || getProjectIdForProviderIdentity(identity) !== projectId) {
+    const identityMatches = identity && getProjectIdForProviderIdentity(identity) === projectId
+    if (!project && !identityMatches) {
       throw new Error('Imported folder does not match the selected project identity.')
     }
     // Why: stamp the selected project's provider identity when the folder lacks upstream, so projection can merge it.
-    const updated = store.updateRepo(repo.id, {
-      upstream: {
-        owner: identity.owner,
-        repo: identity.repo,
-        ...(identity.host ? { host: identity.host } : {})
-      }
-    })
-    if (!updated) {
+    const stamped = identityMatches
+      ? store.updateRepo(repo.id, {
+          upstream: {
+            owner: identity.owner,
+            repo: identity.repo,
+            ...(identity.host ? { host: identity.host } : {})
+          }
+        })
+      : repo
+    if (!stamped) {
       throw new Error(`Project setup repo disappeared before it could be linked: ${repo.id}`)
     }
-    repo = updated
+    repo = associateRepoWithExistingProject(store, stamped, projectId) ?? stamped
     setup = getProjectHostSetupForRepo(store.getProjectHostSetups(), repo)
   }
   const updated = store.updateRepo(repo.id, { projectHostSetupMethod: setupMethod })
