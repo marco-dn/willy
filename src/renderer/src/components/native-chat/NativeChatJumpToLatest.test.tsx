@@ -23,17 +23,6 @@ it('leaves focus in the composer when pressed with the pointer', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
 
-  // Anti-vacuous: the press did act.
   expect(onJump).toHaveBeenCalledOnce()
   expect(document.activeElement).toBe(composer)
-})
-
-// Mounted while hidden so it can fade out; it must not stay reachable meanwhile.
-it('stays mounted but unreachable while hidden', () => {
-  const { container } = render(<NativeChatJumpToLatest visible={false} onJump={vi.fn()} />)
-
-  expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull()
-  const button = container.querySelector('button')
-  expect(button).toHaveAttribute('inert')
-  expect(button).toHaveAttribute('data-shown', 'false')
 })

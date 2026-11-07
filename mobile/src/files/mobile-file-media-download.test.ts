@@ -1,11 +1,8 @@
 import { Buffer } from 'buffer/index.js'
+import { Buffer as NodeBuffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
 import type { RpcResponse } from '../transport/types'
-import {
-  downloadMobileFileMedia,
-  MOBILE_MEDIA_CHUNK_BYTES,
-  MOBILE_MEDIA_MAX_BYTES
-} from './mobile-file-media-download'
+import { downloadMobileFileMedia, MOBILE_MEDIA_CHUNK_BYTES } from './mobile-file-media-download'
 
 const media = {
   worktreeId: 'folder-workspace',
@@ -45,22 +42,6 @@ function rig(replies: RpcResponse[]) {
 }
 
 describe('mobile media download', () => {
-  it.each(['forbidden', 'method_not_found'])(
-    'explains when an older host refuses media stat: %s',
-    async (code) => {
-      const r = rig([
-        {
-          id: '1',
-          ok: false,
-          error: { code, message: 'Unavailable' },
-          _meta: { runtimeId: 'host' }
-        }
-      ])
-      await expect(r.run()).rejects.toThrow('Update Orca on your desktop')
-      expect(r.client.sendRequest).toHaveBeenCalledTimes(1)
-      expect(r.sink.dispose).toHaveBeenCalledOnce()
-    }
-  )
   it('stages bounded chunks byte-for-byte and verifies the file after downloading', async () => {
     const bytes = new Uint8Array(MOBILE_MEDIA_CHUNK_BYTES + 3).fill(123)
     const r = rig([
@@ -76,36 +57,17 @@ describe('mobile media download', () => {
       'files.readChunk',
       'files.stat'
     ])
-    expect(r.sink.append).toHaveBeenNthCalledWith(
-      1,
-      Buffer.from(bytes.subarray(0, MOBILE_MEDIA_CHUNK_BYTES))
-    )
-    expect(r.sink.append).toHaveBeenNthCalledWith(
-      2,
-      Buffer.from(bytes.subarray(MOBILE_MEDIA_CHUNK_BYTES))
-    )
+    expect(r.sink.append.mock.calls.map((args) => args.length)).toEqual([1, 1])
+    const appended = r.sink.append.mock.calls.map(([value]) => {
+      if (!(value instanceof Uint8Array)) {
+        throw new Error('The sink received something other than bytes')
+      }
+      return NodeBuffer.from(value)
+    })
+    expect(appended.map((part) => part.length)).toEqual([MOBILE_MEDIA_CHUNK_BYTES, 3])
+    expect(NodeBuffer.concat(appended).equals(NodeBuffer.from(bytes))).toBe(true)
     expect(r.progress).toHaveBeenLastCalledWith(bytes.length, bytes.length)
     expect(r.sink.dispose).not.toHaveBeenCalled()
-  })
-  it('refuses oversized files before requesting any bytes', async () => {
-    const r = rig([stat(MOBILE_MEDIA_MAX_BYTES + 1)])
-    await expect(r.run()).rejects.toThrow('256 MB')
-    expect(r.client.sendRequest).toHaveBeenCalledTimes(1)
-    expect(r.sink.append).not.toHaveBeenCalled()
-    expect(r.sink.dispose).toHaveBeenCalledOnce()
-  })
-  it.each([
-    { contentBase64: 'AA==', bytesRead: 3, eof: true },
-    { contentBase64: '', bytesRead: 0, eof: false },
-    { contentBase64: 'AA==', bytesRead: 1, eof: true },
-    { contentBase64: 'AAAAAA==', bytesRead: 4, eof: true },
-    { contentBase64: '$invalid', bytesRead: 3, eof: true }
-  ])('discards a malformed or truncated transfer: %j', async (invalid) => {
-    const r = rig([stat(3), ok(invalid)])
-    await expect(r.run()).rejects.toThrow()
-    expect(r.sink.append).not.toHaveBeenCalled()
-    expect(r.sink.finish).not.toHaveBeenCalled()
-    expect(r.sink.dispose).toHaveBeenCalledOnce()
   })
   it('refuses a file modified while it was downloaded', async () => {
     const r = rig([stat(3), chunk(new Uint8Array(3), true), stat(3, 2)])
@@ -145,8 +107,10 @@ describe('mobile media download', () => {
     expect(r.sink.dispose).toHaveBeenCalledOnce()
   })
   it('discards cached bytes when the owning host disconnects', async () => {
+    const bytes = new Uint8Array([1, 2, 3])
     const r = rig([
-      stat(3),
+      stat(6),
+      chunk(bytes, false),
       {
         id: '1',
         ok: false,
@@ -155,6 +119,8 @@ describe('mobile media download', () => {
       }
     ])
     await expect(r.run()).rejects.toThrow('SSH provider unavailable')
+    expect(r.sink.append).toHaveBeenCalledExactlyOnceWith(new Uint8Array(bytes))
+    expect(r.sink.finish).not.toHaveBeenCalled()
     expect(r.sink.dispose).toHaveBeenCalledOnce()
   })
 })

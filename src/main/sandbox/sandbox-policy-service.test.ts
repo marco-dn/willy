@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { normalizeSandboxDestination } from '../../shared/sandbox-policy-types'
 import { SandboxPolicyService } from './sandbox-policy-service'
+import type { SandboxNetworkRule } from '../../shared/sandbox-policy-types'
 
-function rule(id: string, scope = 'sandbox:demo', extra: object = {}) {
+function rule(id: string, scope = 'sandbox:demo', extra: Partial<SandboxNetworkRule> = {}) {
   return {
     id,
     scope,

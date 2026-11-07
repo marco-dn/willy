@@ -2,7 +2,7 @@ import { acquireSandboxExecution } from '../../sandbox/sandbox-execution-boundar
 import type {
   GitAdmissionRequest,
   GitAdmissionGrant
-} from '../../../shared/git-admission-scheduler'
+} from '../../../shared/git/admission/git-admission-state'
 export async function acquireSandboxGitAdmission(
   request: GitAdmissionRequest,
   acquire: () => Promise<GitAdmissionGrant>

@@ -42,32 +42,34 @@ export function SandboxAccessPanel({
       if (action === 'list') {
         setSnapshot(undefined)
       }
-      try {
-        const result = await window.api.sandboxes.policy({
-          target: { name: target.name, id: target.id },
-          action,
-          destination,
-          ruleId
-        })
-        if (mounted.current) {
-          if ('rules' in result) {
-            setSnapshot(result)
-            setCheck(result.check)
-          } else {
-            setCheck(result)
+      await (async () => {
+        try {
+          const result = await window.api.sandboxes.policy({
+            target: { name: target.name, id: target.id },
+            action,
+            destination,
+            ruleId
+          })
+          if (mounted.current) {
+            if ('rules' in result) {
+              setSnapshot(result)
+              setCheck(result.check)
+            } else {
+              setCheck(result)
+            }
+          }
+        } catch (error) {
+          if (mounted.current) {
+            setError(String(error))
+            setSnapshot(undefined)
           }
         }
-      } catch (error) {
-        if (mounted.current) {
-          setError(String(error))
-          setSnapshot(undefined)
-        }
-      } finally {
+      })().finally(() => {
         inFlight.current = false
         if (mounted.current) {
           setBusy(false)
         }
-      }
+      })
     },
     [mounted, target.name, target.id]
   )
@@ -100,7 +102,7 @@ export function SandboxAccessPanel({
           id={`network-destination-${target.id}`}
           value={destination}
           onChange={(event) => setDestination(event.target.value)}
-          placeholder="example.com:443"
+          placeholder={translate('settings.sandbox.destinationExample', 'example.com:443')}
           disabled={blocked}
           required
           maxLength={300}

@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SshConnectionState } from '../../../../shared/ssh-types'
 
 const mocks = vi.hoisted(() => ({
   toast: Object.assign(vi.fn(), {
@@ -9,13 +8,15 @@ const mocks = vi.hoisted(() => ({
     loading: vi.fn(() => 'progress'),
     dismiss: vi.fn()
   }),
-  fetchReposForAllHosts: vi.fn(async () => undefined)
+  fetchReposForAllHosts: vi.fn(async () => undefined),
+  remountTerminalTabForRecovery: vi.fn()
 }))
 vi.mock('sonner', () => ({ toast: mocks.toast }))
 vi.mock('../../store', () => ({
   useAppStore: {
     getState: () => ({
       fetchReposForAllHosts: mocks.fetchReposForAllHosts,
+      remountTerminalTabForRecovery: mocks.remountTerminalTabForRecovery,
       sshTargetLabels: new Map([['ssh-1', 'Box']]),
       tabsByWorktree: {},
       ptyIdsByTabId: {},
@@ -24,39 +25,29 @@ vi.mock('../../store', () => ({
   }
 }))
 
-const { applySshManagedServerTransition } = await import('./ssh-managed-server-state-effects')
-
-type Status = SshConnectionState['managedServer']
-
-const offer: Status = {
-  kind: 'relay',
-  reason: 'relay_terminals_live',
-  terminals: 3
-}
-const moveToManagedServer = vi.fn()
+vi.mock(
+  '../../components/terminal-pane/pty-transport/legacy-relay/legacy-relay-bridge-panes',
+  () => ({
+    legacyRelayBridgedTabIds: (targetId: string) => (targetId === 'ssh-1' ? ['tab-1', 'tab-2'] : [])
+  })
+)
 
 beforeEach(() => {
   vi.clearAllMocks()
-  Object.assign(window, { api: { ssh: { moveToManagedServer } } })
 })
 afterEach(() => {
   Reflect.deleteProperty(window, 'api')
 })
 
-describe('a host the managed server does not serve', () => {
-  it('shows only for a newly marked offer, never for a plain live-terminals status', () => {
-    applySshManagedServerTransition('ssh-1', offer, offer)
-    applySshManagedServerTransition('ssh-1', undefined, {
-      kind: 'relay',
-      reason: 'relay_terminals_live',
-      terminals: 3
-    })
-    expect(mocks.toast).not.toHaveBeenCalled()
-  })
-
-  it('stays silent where the move is not available', () => {
-    Object.assign(window, { api: { ssh: {} } })
-    applySshManagedServerTransition('ssh-1', undefined, offer)
-    expect(mocks.toast).not.toHaveBeenCalled()
+describe('a host kept connected for the relay bridge', () => {
+  it('never loads the bridge panes module, which subscribes on load, just by being imported', async () => {
+    vi.resetModules()
+    vi.doUnmock(
+      '../../components/terminal-pane/pty-transport/legacy-relay/legacy-relay-bridge-panes'
+    )
+    const listPanes = vi.fn(() => undefined)
+    Object.assign(window, { api: { ssh: {}, legacyRelayBridge: { listPanes, onPanes: vi.fn() } } })
+    await import('./ssh-managed-server-state-effects')
+    expect(listPanes).not.toHaveBeenCalled()
   })
 })

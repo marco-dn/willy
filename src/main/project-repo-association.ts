@@ -1,6 +1,31 @@
-import { getRepoExecutionHostId } from '../shared/execution-host'
 import type { Repo } from '../shared/repo-types'
 import type { RuntimeStore } from './runtime/runtime-store-contract'
+import type { Project } from '../shared/project-types'
+import { resolveImportedFolderProjectLink } from '../shared/imported-folder-project-identity'
+
+export function associateImportedRepoWithProject(
+  store: Pick<RuntimeStore, 'getProjects' | 'getRepos' | 'updateRepo'>,
+  repo: Repo,
+  projectId: string,
+  providerIdentity: Parameters<typeof resolveImportedFolderProjectLink>[2]
+): Repo | null {
+  return (
+    associateRepoWithExistingProject(store, repo, projectId) ??
+    store.updateRepo(repo, resolveImportedFolderProjectLink(repo, projectId, providerIdentity))
+  )
+}
+
+export function assertRepoSandboxUnlinked(projects: readonly Project[], repoId: string): void {
+  if (
+    projects.some(
+      (project) =>
+        project.sandboxBinding &&
+        (project.sourceRepoIds.includes(repoId) || project.sandboxBinding.repoId === repoId)
+    )
+  ) {
+    throw new Error('Unlink the project sandbox before removing one of its environments.')
+  }
+}
 
 export function associateRepoWithExistingProject(
   store: Pick<RuntimeStore, 'getProjects' | 'getRepos' | 'updateRepo'>,
@@ -19,21 +44,11 @@ export function associateRepoWithExistingProject(
   for (const source of store
     .getRepos()
     .filter((entry) => project.sourceRepoIds.includes(entry.id))) {
-    if (
-      !store.updateRepo(
-        source.id,
-        { explicitProjectId: project.id },
-        getRepoExecutionHostId(source)
-      )
-    ) {
+    if (!store.updateRepo(source, { explicitProjectId: project.id })) {
       throw new Error(`Project source disappeared: ${source.id}`)
     }
   }
-  const updated = store.updateRepo(
-    repo.id,
-    { explicitProjectId: project.id },
-    getRepoExecutionHostId(repo)
-  )
+  const updated = store.updateRepo(repo, { explicitProjectId: project.id })
   if (!updated) {
     throw new Error(`Project setup repo disappeared: ${repo.id}`)
   }

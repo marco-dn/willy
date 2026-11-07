@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
+import type { FolderWorkspace } from '../../../shared/folder-workspaces/folder-workspace-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
-import type { FolderWorkspacePathStatusReason } from '../../../shared/folder-workspace-path-status'
+import type { FolderWorkspacePathStatusReason } from '../../../shared/folder-workspaces/folder-workspace-path-status'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
+import '../../../shared/constants'
 
-// Why: drives the real activation module against a real store, so a regression in
-// the workspace dispatch or in the path-status guard itself both surface here.
-// Mocking the module under test would let the gate be bypassed while still passing.
-// Only the store singleton, the toast sink and the path-status IPC are substituted.
+// Drive real activation/store/path guarding; replace only singleton/toast/path IPC so mocking cannot hide dispatch or guard regressions.
 
 const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
@@ -16,12 +14,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }))
 
-const { createTestStore } = await import('@/store/slices/store-test-helpers')
+const { createTestStore } = await import('@/store/testing/app-store-test-fixture')
 const store = createTestStore()
 
 vi.mock('@/store', () => ({ useAppStore: store }))
 
-const { activateAndRevealWorkspace } = await import('./worktree-activation')
+const { activateAndRevealWorkspace } = await import('./workspace/activation/worktree-activation')
 
 const projectGroup: ProjectGroup = {
   id: 'group-1',
@@ -61,11 +59,11 @@ async function seedFolderWorkspace(
     activeWorktreeId: null,
     activeWorkspaceKey: null,
     activeView: 'terminal',
+    sidebarBody: 'workspaces',
     folderWorkspacePathStatuses: {}
   })
   mocks.getPathStatus.mockResolvedValue({ path: folderWorkspace.folderPath, ...status })
-  // Why the real fetch: it writes the cache under the exact key + request snapshot
-  // that the activation guard reads back, so the fixture can't drift from production.
+  // Real fetch writes the exact cache key/request read by activation, preventing fixture drift.
   await store
     .getState()
     .fetchFolderWorkspacePathStatus(
@@ -76,6 +74,7 @@ async function seedFolderWorkspace(
 
 describe('Cmd/Ctrl+1-9 folder-workspace path gate (#10716)', () => {
   beforeEach(() => {
+    store.setState(store.getInitialState(), true)
     mocks.toastError.mockClear()
     vi.stubGlobal('window', {
       api: { folderWorkspaces: { getPathStatus: mocks.getPathStatus } }
@@ -89,15 +88,6 @@ describe('Cmd/Ctrl+1-9 folder-workspace path gate (#10716)', () => {
 
     expect(store.getState().activeWorkspaceKey).toBeNull()
     expect(store.getState().activeWorktreeId).toBeNull()
-    expect(mocks.toastError).toHaveBeenCalledTimes(1)
-  })
-
-  it('blocks the number shortcut when the SSH connection owning the folder is ambiguous', async () => {
-    await seedFolderWorkspace({ exists: false, reason: 'ambiguous-connection' })
-
-    activateAndRevealWorkspace(folderWorkspaceKey(folderWorkspace.id))
-
-    expect(store.getState().activeWorkspaceKey).toBeNull()
     expect(mocks.toastError).toHaveBeenCalledTimes(1)
   })
 

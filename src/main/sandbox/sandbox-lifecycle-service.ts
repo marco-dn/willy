@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import type {
   SandboxLifecycleSnapshot,

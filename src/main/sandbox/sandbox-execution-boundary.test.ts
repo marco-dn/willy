@@ -23,7 +23,7 @@ vi.mock('./sandbox-command', () => ({
 vi.mock('../providers/ssh-filesystem-dispatch', () => ({
   getSshFilesystemProvider: () => ({ realpath: async (path: string) => path })
 }))
-vi.mock('../ssh/ssh-target-registry', () => {
+vi.mock('../ssh/targets/ssh-target-registry', () => {
   const mux = { request: async () => ({ stdout: 'sandbox', exitCode: 0, timedOut: false }) }
   return { getRegisteredSshState: () => ({ status: 'connected' }), getActiveMultiplexer: () => mux }
 })

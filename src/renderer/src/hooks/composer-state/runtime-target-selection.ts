@@ -1,14 +1,14 @@
-import { ipcOrRuntimeTargetForHostId } from '@/runtime/runtime-client-target'
+import { ipcOrRuntimeTargetForHostId } from '@/runtime/rpc/targets/runtime-client-target'
 import type { ComposerRuntimeTargetSelectionInput } from './composer-target-input-contracts'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { getFolderSourceRepos } from '@/components/sidebar/folder-workspace-composer-helpers'
+import { getFolderSourceRepos } from '@/components/sidebar/workspace-creation/folder/folder-workspace-source-repos'
 import { parseExecutionHostId, getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { getSelectedRepoSshGate } from '@/lib/new-workspace-ssh-gate'
 import { selectRepoSshGateInput } from '@/lib/repo-ssh-connection'
-import { useFolderWorkspaceComposerPathStatus } from '@/components/sidebar/folder-workspace-composer-path-status'
+import { useFolderWorkspaceComposerPathStatus } from '@/components/sidebar/workspace-creation/folder/folder-workspace-composer-path-status'
 import { useDetectedAgents } from '@/hooks/useDetectedAgents'
-import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
 import { resolveWorkspaceCreationTarget } from '@/lib/project-host-workspace-target'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import { CLIENT_PLATFORM } from '@/lib/new-workspace'
@@ -19,8 +19,8 @@ import {
   type ExecutionHostPlatformFact
 } from '@/lib/execution-host-facts'
 import { useAppStore } from '@/store'
-import { repoIsRemote } from '../../../../shared/agent-launch-remote'
-import { buildProjectHostSetupOptions } from '@/lib/project-host-setup-options'
+import { repoIsRemote } from '../../../../shared/agent-launch/startup/agent-launch-remote'
+import { useProjectHostSetupOptions } from './project-host-options'
 import { buildNewWorkspaceCreateTargetOptions } from '@/lib/new-workspace-project-options'
 import { getRuntimeEnvironmentIdForRepo } from '@/lib/repo-runtime-owner'
 import { useEphemeralVmRecipeOptions } from '@/hooks/useEphemeralVmRecipeOptions'
@@ -32,13 +32,15 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
     eligibleRepos,
     hostOptions,
     initialEphemeralVmRecipeId,
+    pendingInitialWorkspaceTarget,
     projectGroups,
     projectHostSetups,
     projects,
-    repoId,
+    repoId: requestedRepoId,
     repos,
     selectedProjectGroup,
     selectedProjectHostSetupOverrideId,
+    selectedProjectHostSetupOverrideHostId,
     settings,
     sshConnectionStates,
     workspaceHostScope,
@@ -104,38 +106,55 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
         eligibleRepos,
         projects,
         projectHostSetups,
-        draftRepoId: repoId,
-        projectHostSetupId: selectedProjectHostSetupOverrideId,
+        draftRepoId: requestedRepoId,
+        projectId: pendingInitialWorkspaceTarget?.projectId,
+        hostId: pendingInitialWorkspaceTarget?.hostId,
+        projectHostSetupId:
+          pendingInitialWorkspaceTarget?.projectHostSetupId ?? selectedProjectHostSetupOverrideId,
+        projectHostSetupHostId:
+          pendingInitialWorkspaceTarget?.hostId ??
+          (selectedProjectHostSetupOverrideId ? selectedProjectHostSetupOverrideHostId : null),
         focusedHostScope: workspaceHostScope,
         actionableHostIds
       }),
     [
       actionableHostIds,
       eligibleRepos,
+      pendingInitialWorkspaceTarget,
       projectHostSetups,
       projects,
-      repoId,
+      requestedRepoId,
       selectedProjectHostSetupOverrideId,
+      selectedProjectHostSetupOverrideHostId,
       workspaceHostScope
     ]
   )
 
-  const selectedRepo =
-    selectedWorkspaceTarget.status === 'ready' && selectedWorkspaceTarget.target.repoId === repoId
+  const resolvedRepoId =
+    !isProjectGroupTarget &&
+    pendingInitialWorkspaceTarget &&
+    selectedWorkspaceTarget.status === 'ready'
+      ? selectedWorkspaceTarget.target.repoId
+      : requestedRepoId
+
+  const selectedRepo = isProjectGroupTarget
+    ? eligibleRepos.find((repo) => repo.id === resolvedRepoId)
+    : selectedWorkspaceTarget.status === 'ready' &&
+        selectedWorkspaceTarget.target.repoId === resolvedRepoId
       ? selectedWorkspaceTarget.target.repo
-      : eligibleRepos.find((repo) => repo.id === repoId)
+      : undefined
 
   const selectedRepoIsGit = selectedRepo ? isGitRepoKind(selectedRepo) : false
 
   const selectedRepoExecutionHostId = selectedRepo ? getRepoExecutionHostId(selectedRepo) : null
 
   const selectedRepoHookContextKey = selectedRepo
-    ? JSON.stringify([selectedRepoExecutionHostId ?? 'local', repoId])
+    ? JSON.stringify([selectedRepoExecutionHostId ?? 'local', resolvedRepoId])
     : null
 
   const sshStateByEnvironment = useAppStore((s) => s.sshStateByEnvironment)
   const runtimeStatusByEnvironmentId = useAppStore((s) => s.runtimeStatusByEnvironmentId)
-  // Why: the agent runs on the repo's execution host, so its OS decides quoting, not this client's (#22204).
+  // Quote for the repo execution host’s OS, not the client’s (#22204).
   const selectedRepoAgentLaunchFact = useMemo((): ExecutionHostPlatformFact => {
     if (!selectedRepo) {
       return { kind: 'withheld', reason: 'Select a project first.' }
@@ -169,7 +188,7 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
     worktreesByRepo
   ])
 
-  // Why: SSH remotes deploy the CLI shim as plain `orca`, so the Linux-only `orca-ide` rename must not apply to remote launch commands.
+  // SSH deploys the shim as orca; Linux’s local orca-ide rename must not affect remote commands.
   const selectedRepoIsRemote = selectedRepo ? repoIsRemote(selectedRepo) : false
 
   const selectedRepoStartupShell = resolveExecutionHostAgentStartupShell(
@@ -189,17 +208,15 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
       ? selectedWorkspaceTarget.target.projectHostSetupId
       : null
 
-  const projectHostSetupOptions = useMemo(
-    () =>
-      buildProjectHostSetupOptions({
-        projects,
-        projectId: selectedRepoProjectId,
-        projectHostSetups,
-        eligibleRepos,
-        hosts: hostOptions
-      }),
-    [eligibleRepos, hostOptions, projectHostSetups, selectedRepoProjectId, projects]
-  )
+  const projectHostSetupOptions = useProjectHostSetupOptions({
+    projects,
+    projectId: selectedRepoProjectId,
+    projectHostSetups,
+    eligibleRepos,
+    hosts: hostOptions,
+    selectedSetup:
+      selectedWorkspaceTarget.status === 'ready' ? selectedWorkspaceTarget.target : null
+  })
 
   const projectOptions = useMemo(
     () =>
@@ -226,12 +243,12 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
     [selectedRepo]
   )
 
-  // Why: key on repo id, not the repo object — updateRepo replaces it by reference and would re-run this effect, wiping the user's chosen recipe.
+  // Key recipes by repo ID; updateRepo object replacement must not erase the user’s selection.
   const selectedRecipeRepoId = selectedRepo?.id ?? null
 
   const selectedRecipeRepoConnectionId = selectedRepo?.connectionId ?? null
 
-  // Why: gate recipe probing on the experimental toggle, since discovery can surface setup errors for a hidden feature.
+  // Only probe enabled experiments or hidden features can raise setup errors.
   const ephemeralVmsEnabled = settings?.experimentalEphemeralVms === true
 
   const {
@@ -267,11 +284,11 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
       status: selectedRepoSshGateInput?.status ?? null
     })
 
-  const repoIdRef = useRef(repoId)
+  const repoIdRef = useRef(resolvedRepoId)
 
   useEffect(() => {
-    repoIdRef.current = repoId
-  }, [repoId])
+    repoIdRef.current = resolvedRepoId
+  }, [resolvedRepoId])
 
   return {
     isProjectGroupTarget,
@@ -290,6 +307,7 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
     folderDetectedIds,
     folderDetectedAgentIds,
     selectedWorkspaceTarget,
+    resolvedRepoId,
     selectedRepo,
     selectedRepoIsGit,
     selectedRepoExecutionHostId,

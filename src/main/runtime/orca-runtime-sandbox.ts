@@ -1,10 +1,15 @@
 import type { Repo } from '../../shared/repo-types'
-import { OrcaRuntimeWithMigrationCatalog } from './orca-runtime-migration-catalog'
+import { OrcaRuntimeWithAgentTransitions } from './orca-runtime-agent-transitions'
+import { OrcaRuntimeWithSidebarTemporal } from './sidebar-inputs/orca-runtime-sidebar-temporal'
+import { ORCA_SIDEBAR_INPUTS_IS_MAIN } from '../../shared/sidebar-inputs-switch'
+const SandboxRuntimeBase: typeof OrcaRuntimeWithAgentTransitions = ORCA_SIDEBAR_INPUTS_IS_MAIN
+  ? OrcaRuntimeWithSidebarTemporal
+  : OrcaRuntimeWithAgentTransitions
 import type { SandboxRuntimeProjectRequest } from '../../shared/sandbox-runtime-contract'
 import { verifySandboxHostIdentity } from '../sandbox/sandbox-host-identity'
 import { configureSandboxExecutionStore } from '../sandbox/sandbox-execution-boundary'
 
-export class OrcaRuntimeWithSandbox extends OrcaRuntimeWithMigrationCatalog {
+export abstract class OrcaRuntimeWithSandbox extends SandboxRuntimeBase {
   async registerSandboxProject(args: SandboxRuntimeProjectRequest, addRepo: () => Promise<Repo>) {
     const policy = configureSandboxExecutionStore(this.requireStore())
     return policy.transition(args.projectId, async () => {
@@ -29,22 +34,19 @@ export class OrcaRuntimeWithSandbox extends OrcaRuntimeWithMigrationCatalog {
       throw new Error('This sandbox folder is already registered to another project.')
     }
     const repo = await addRepo()
-    const updated = store.updateRepo(
-      repo.id,
-      {
-        explicitProjectId: args.projectId,
-        worktreeBasePath: args.worktreePath
-      },
-      'local'
-    )
+    const updated = store.updateRepo(repo, {
+      explicitProjectId: args.projectId,
+      worktreeBasePath: args.worktreePath
+    })
     const setup = store
       .getProjectHostSetups?.()
       .find((row) => row.repoId === repo.id && row.hostId === 'local')
-    if (!updated || !setup) {
+    const project = store.getProjects?.().find((row) => row.id === args.projectId)
+    if (!updated || !setup || !project) {
       throw new Error('Sandbox project setup could not be verified.')
     }
     await store.runDurableMutation(() => {
-      store.setProjectSandboxBinding!(args.projectId, {
+      store.setProjectSandboxBinding!(project, {
         sandboxId: args.sandboxId,
         sandboxName: args.sandboxName,
         sandboxBootId: args.sandboxBootId,
@@ -66,11 +68,15 @@ export class OrcaRuntimeWithSandbox extends OrcaRuntimeWithMigrationCatalog {
     const policy = configureSandboxExecutionStore(store)
     return policy.transition(projectId, async () => {
       await this.assertSandboxProjectIdle(projectId)
+      const project = store.getProjects?.().find((row) => row.id === projectId)
+      if (!project) {
+        throw new Error('Sandbox project no longer exists.')
+      }
       if (!store.setProjectSandboxBinding || !store.runDurableMutation) {
         throw new Error('Sandbox project persistence is unavailable.')
       }
       await store.runDurableMutation(() => {
-        store.setProjectSandboxBinding!(projectId, null)
+        store.setProjectSandboxBinding!(project, null)
         return { value: undefined }
       })
       return { unlinked: true }

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { buildRows } from './worktree-list/grouping/build-rows'
+import { buildRows } from './worktree-list/grouping/build-rows.test-fixture'
 import {
   repo,
   remoteRepo,
@@ -7,7 +7,7 @@ import {
   remoteWorktree,
   project,
   projectHostSetups
-} from './worktree-list-groups-test-fixtures'
+} from './worktree-list/grouping/worktree-list-groups-test-fixtures'
 import type { Project } from '../../../../shared/project-types'
 
 const linked: Project = {

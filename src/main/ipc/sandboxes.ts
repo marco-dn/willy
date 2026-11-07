@@ -8,12 +8,12 @@ import {
   registerSandboxSshTarget,
   connectSandboxSshTarget
 } from '../sandbox/sandbox-ssh-target'
-import { listRegisteredSshTargets } from '../ssh/ssh-target-registry'
+import { listRegisteredSshTargets } from '../ssh/targets/ssh-target-registry'
 import { SandboxLifecycleService } from '../sandbox/sandbox-lifecycle-service'
 import { configureSandboxLifecycleGuard } from '../sandbox/sandbox-lifecycle-guard'
-import { disconnectRegisteredSshTarget } from './ssh-session-teardown'
+import { disconnectRegisteredSshTarget } from './ssh/ssh-session-teardown'
 import { registerSandboxRuntimeProject } from '../sandbox/sandbox-runtime-registration'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import type { BrowserWindow } from 'electron'
 import { SandboxProjectService } from '../sandbox/sandbox-project-service'
 import { configureSandboxExecutionStore } from '../sandbox/sandbox-execution-boundary'

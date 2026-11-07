@@ -3,7 +3,9 @@ const mocks = vi.hoisted(() => ({
   resolve: vi.fn(async () => '/tools/sbx'),
   spawn: vi.fn(async () => ({}))
 }))
-vi.mock('../ipc/command-path-resolver', () => ({ resolveCommandOnLocalPath: mocks.resolve }))
+vi.mock('../ipc/command-path/command-path-resolver', () => ({
+  resolveCommandOnLocalPath: mocks.resolve
+}))
 vi.mock('../daemon/pty-subprocess/native-pty-spawn', () => ({ spawnNativeDaemonPty: mocks.spawn }))
 import { spawnSandboxCredentialPty } from './sandbox-credential-pty'
 describe('credential PTY launch', () => {

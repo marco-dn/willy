@@ -32,22 +32,24 @@ export function SandboxImportPanel({
     active.current = true
     setBusy(true)
     setError(undefined)
-    try {
-      const record = await window.api.sandboxes.importExisting({
-        target: { name: sandbox.name, id: sandbox.id },
-        mountPath: mount
-      })
-      onImported(record)
-    } catch (error) {
-      if (mounted.current) {
-        setError(error instanceof Error ? error.message : String(error))
+    await (async () => {
+      try {
+        const record = await window.api.sandboxes.importExisting({
+          target: { name: sandbox.name, id: sandbox.id },
+          mountPath: mount
+        })
+        onImported(record)
+      } catch (error) {
+        if (mounted.current) {
+          setError(error instanceof Error ? error.message : String(error))
+        }
       }
-    } finally {
+    })().finally(() => {
       active.current = false
       if (mounted.current) {
         setBusy(false)
       }
-    }
+    })
   }
   return (
     <div className="space-y-3">

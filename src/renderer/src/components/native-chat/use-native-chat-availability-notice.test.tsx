@@ -1,38 +1,32 @@
 // @vitest-environment happy-dom
 import { cleanup, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { useNativeChatAvailabilityNotice } from './use-native-chat-availability-notice'
-import { agentSessionFailureWords } from '../../../../shared/agent-session-failure-words'
-import type { AgentJournalRenderItem } from '../../../../shared/agent-session-journal-types'
-import { agentJournalSubmissionKey } from '../../../../shared/agent-session-journal-item-key'
-import {
-  structuredAgentSessionDeliveryNotices,
-  structuredAgentSessionStartFailureFacts
-} from './structured-agent-session-delivery-notices'
+import { agentSessionFailureWords } from '../../../../shared/agent-session/failures/agent-session-failure-words'
+import type { AgentJournalRenderItem } from '../../../../shared/agent-session/journal/agent-session-journal-types'
+import { agentJournalSubmissionKey } from '../../../../shared/agent-session/journal/agent-session-journal-item-key'
+import { structuredAgentSessionDeliveryNotices } from './structured-agent-session-delivery-notices'
+import { agentSessionVisibleFailureFacts } from '../../../../shared/agent-session/failures/agent-session-visible-failures'
 
 afterEach(cleanup)
-describe('each agent names its own sign-in method before a send', () => {
-  it.each([
-    ['claude', 'Claude', 'claude auth login'],
-    ['codex', 'Codex', 'codex login'],
-    ['grok', 'Grok', 'grok login'],
-    ['opencode', 'OpenCode', 'opencode auth login'],
-    ['pi', 'Pi', '/login'],
-    ['omp', 'OMP', 'Sign in to OMP.']
-  ] as const)('uses %s copy without a post-send retry tail', (agent, agentLabel, command) => {
-    const { result } = renderHook(() =>
+
+it('offers the host sign-in action before an authenticated turn can start', () => {
+  const signIn = vi.fn()
+  const { result, rerender } = renderHook(
+    ({ signingIn }) =>
       useNativeChatAvailabilityNotice({
-        agent,
-        agentLabel,
+        agent: 'omp',
         unavailable: { reason: 'notSignedIn' },
         launchFailure: null,
-        journalItems: []
-      })
-    )
-    expect(result.current?.text).toContain(command)
-    expect(result.current?.text).toContain(agentLabel)
-    expect(result.current?.text).not.toContain('send your message again')
-  })
+        journalItems: [],
+        signIn: { signingIn, signIn }
+      }),
+    { initialProps: { signingIn: false } }
+  )
+  result.current?.action?.onClick()
+  expect(signIn).toHaveBeenCalledOnce()
+  rerender({ signingIn: true })
+  expect(result.current?.action?.disabled).toBe(true)
 })
 
 it('keeps one auth explanation while an unechoed message still reads as unsent', () => {
@@ -55,7 +49,6 @@ it('keeps one auth explanation while an unechoed message still reads as unsent',
   const { result } = renderHook(() =>
     useNativeChatAvailabilityNotice({
       agent: 'codex',
-      agentLabel: 'Codex',
       unavailable: { reason: 'notSignedIn', account: 'system' },
       launchFailure: null,
       journalItems: [authRow]
@@ -65,7 +58,7 @@ it('keeps one auth explanation while an unechoed message still reads as unsent',
   const notices = structuredAgentSessionDeliveryNotices({
     pending: [],
     agentName: 'Codex',
-    startFailures: structuredAgentSessionStartFailureFacts([authRow]),
+    startFailures: agentSessionVisibleFailureFacts([authRow]),
     submissions: [
       {
         clientMessageId: 'send',
@@ -83,7 +76,6 @@ it('keeps one auth explanation while an unechoed message still reads as unsent',
   expect([...notices.values()].map((notice) => notice.text)).toEqual(['Your message was not sent.'])
 })
 
-// A signed-out Pi turns the send away before any turn: that send's own line says it.
 it("steps aside while the newest send's own line says the notice's reason", () => {
   const sent = (
     id: string,
@@ -114,7 +106,6 @@ it("steps aside while the newest send's own line says the notice's reason", () =
     renderHook(() =>
       useNativeChatAvailabilityNotice({
         agent: 'pi',
-        agentLabel: 'Pi',
         unavailable: { reason: 'notSignedIn' },
         launchFailure: null,
         journalItems,

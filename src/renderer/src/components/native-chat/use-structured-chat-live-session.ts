@@ -12,11 +12,14 @@ type StructuredChatController = Pick<
   | 'hasOlder'
   | 'loadingOlder'
   | 'olderHistoryGeneration'
+  | 'initialHistoryAutoLoad'
   | 'loadOlder'
+  | 'retainHistory'
+  | 'trimHistory'
+  | 'readCurrent'
 >
 
-/** The structured chat as the shared transcript reads it: its rows, and a status that stays
- *  `loading` until the chat's history is known. */
+/** Keep the shared transcript loading until structured history is known. */
 export function useStructuredChatLiveSession(
   controller: StructuredChatController,
   historyPhase: ReturnType<typeof structuredChatHistoryPhase>,
@@ -44,13 +47,17 @@ export function useStructuredChatLiveSession(
       hasMore: controller.hasOlder && hostReachable,
       loadingEarlier: controller.loadingOlder,
       olderHistoryGeneration: controller.olderHistoryGeneration,
+      initialHistoryAutoLoad: controller.initialHistoryAutoLoad,
       loadEarlier: controller.loadOlder,
+      retainHistory: controller.retainHistory,
+      trimHistory: controller.trimHistory,
       readPhase:
         controller.status === 'loading'
           ? 'loading'
           : controller.status === 'error'
             ? 'error'
-            : 'ready'
+            : 'ready',
+      readCurrent: controller.readCurrent
     }),
     [controller, historyPhase, agent, sessionId, hostReachable]
   )

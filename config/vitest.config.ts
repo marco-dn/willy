@@ -1,22 +1,74 @@
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
-import { defaultExclude, defineConfig } from 'vitest/config'
-import { UNIT_INCLUDE, UNIT_EXCLUDE } from './scripts/ci-unit-files.mjs'
-import TimingSequencer from './scripts/ci-unit-sequencer.mjs'
-import RuntimeSequencer from './scripts/vitest-runtime-sequencer.mjs'
-import { NODE_RUNTIME_INCLUDE } from './scripts/vitest-node-runtime-files.mjs'
-import { nodeRuntimePool } from './scripts/vitest-node-runtime-pool'
-import { createWorkspaceSourceResolver } from './scripts/workspace-source-exports.mjs'
+import { normalizePath, transformWithOxc, type Plugin } from 'vite'
+import { configDefaults, defaultExclude, defineConfig } from 'vitest/config'
+import {
+  UNIT_INCLUDE,
+  UNIT_EXCLUDE,
+  UNIT_SETUP_FILES
+} from './scripts/ci/unit-selection/dependency-graph/ci-unit-files.mjs'
+import TimingSequencer from './scripts/ci/sharding/ci-unit-sequencer.mjs'
+import RuntimeSequencer from './scripts/test-runtime/execution-policy/vitest-runtime-sequencer.mjs'
+import { getNodeRuntimeInclude } from './scripts/test-runtime/sqlite-admission/vitest-node-runtime-files.mjs'
+import { nodeRuntimePool } from './scripts/test-runtime/node-worker/vitest-node-runtime-pool'
+import { readRunFilters } from './scripts/test-runtime/execution-policy/vitest-run-filters.mjs'
+import { createWorkspaceSourceResolver } from './scripts/workspace/source-exports/workspace-source-exports.mjs'
+import { moduleCacheResolutionKey } from './scripts/test-runtime/module-cache/vitest-module-cache-resolution-key'
 
+const nodeRuntimeInclude = process.versions.bun
+  ? getNodeRuntimeInclude({ filters: readRunFilters() })
+  : []
 const balancedShards = process.env.ORCA_BALANCE_UNIT_SHARDS === '1'
-const measurementFile = 'src/main/foreign-sqlite-readers/foreign-sqlite-reader-event-loop.test.ts'
+const moduleCachePath = process.env.ORCA_UNIT_MODULE_CACHE_PATH
+const phoneContractPattern = /\/mobile\/src\/.*\.(?:ts|tsx)(?:\?.*)?$/
 const transforms = {
+  // Auto-discovery climbs past the repo for files no in-repo tsconfig owns, into an enclosing checkout.
+  tsconfig: resolve(import.meta.dirname, 'tsconfig.vitest-transform.json'),
+  oxc: { exclude: [/\.js$/, phoneContractPattern] },
+  plugins: [
+    {
+      // These plain TS consumers need no Expo app configuration in root-only installs.
+      name: 'phone-contract-oxc',
+      enforce: 'pre',
+      async transform(source, id) {
+        const filename = normalizePath(id.split('?')[0])
+        if (!phoneContractPattern.test(filename)) {
+          return null
+        }
+        const result = await transformWithOxc(source, filename, { tsconfig: false })
+        for (const warning of result.warnings) {
+          this.warn(warning)
+        }
+        return { code: result.code, map: result.map }
+      }
+    } satisfies Plugin,
+    ...(moduleCachePath ? [moduleCacheResolutionKey()] : []),
+    {
+      // Unit tests have no asset server; retain real catalog parsing through fetch(data:).
+      name: 'locale-catalog-test-assets',
+      enforce: 'pre' as const,
+      load(id: string) {
+        if (/\/i18n\/locales\/[A-Za-z-]+\.json\?url$/.test(id)) {
+          const catalog = readFileSync(id.slice(0, -4)).toString('base64')
+          return `export default ${JSON.stringify(`data:application/json;base64,${catalog}`)}`
+        }
+        return null
+      }
+    }
+  ],
   define: {
     ORCA_FEATURE_WALL_ENABLED: 'true',
     // Why: tests only interpolate it; they must not depend on the checkout's HEAD.
-    ORCA_BUILD_COMMIT: JSON.stringify('0'.repeat(40))
+    ORCA_BUILD_COMMIT: JSON.stringify('0'.repeat(40)),
+    // A dark switch set to 'main' in the env (`ORCA_LAYOUT_OWNER=main pnpm vitest`) is on in tests.
+    ...createRequire(import.meta.url)('./dark-build-switches.cjs').turnedOnDarkBuildDefines()
   },
   resolve: {
     alias: [
+      ...(process.env.ORCA_UNIT_ZOD_BUNDLE
+        ? [{ find: /^zod$/, replacement: process.env.ORCA_UNIT_ZOD_BUNDLE }]
+        : []),
       ...createWorkspaceSourceResolver().aliases,
       { find: '@renderer', replacement: resolve('src/renderer/src') },
       { find: '@', replacement: resolve('src/renderer/src') },
@@ -29,19 +81,15 @@ const transforms = {
 const testOptions = {
   environment: 'node',
   clearMocks: false,
-  fsModuleCache: true,
+  ...(balancedShards ? { silent: 'passed-only' as const } : {}),
+  // Keyed by ci-unit-module-cache.mjs in CI and vitest-local-module-cache.mjs locally.
+  fsModuleCache: Boolean(moduleCachePath),
+  ...(moduleCachePath ? { fsModuleCachePath: moduleCachePath } : {}),
   env: { ORCA_VITEST_RUNTIME: 'node' },
   server: { deps: { inline: ['zod'] } },
   // Node's storage globals and V8 retention checks require the existing child flags.
   execArgv: ['--no-experimental-webstorage', '--expose-gc'],
-  setupFiles: [
-    resolve('config/scripts/vitest-real-agent-home-write-guard.ts'),
-    resolve('config/scripts/vitest-bun-node-builtins.ts'),
-    resolve('config/scripts/happy-dom-offscreen-canvas.ts'),
-    resolve('config/scripts/happy-dom-mutation-observer-retention.ts'),
-    resolve('config/scripts/vitest-host-ports-setup.ts'),
-    resolve('config/scripts/vitest-caller-identity-env-setup.ts')
-  ],
+  setupFiles: UNIT_SETUP_FILES.map((file) => resolve(file)),
   include: UNIT_INCLUDE,
   exclude: balancedShards ? UNIT_EXCLUDE : defaultExclude,
   hookTimeout: 60_000,
@@ -54,54 +102,43 @@ const nodeProject = {
     ...testOptions,
     name: process.versions.bun ? 'node-runtime' : 'node',
     env: { ORCA_VITEST_RUNTIME: process.versions.bun ? 'node-runtime' : 'node' },
-    include: process.versions.bun ? NODE_RUNTIME_INCLUDE : UNIT_INCLUDE,
-    exclude: [...testOptions.exclude, measurementFile],
+    include: process.versions.bun ? nodeRuntimeInclude : UNIT_INCLUDE,
     sequence: { groupOrder: 1 },
     ...(process.versions.bun
       ? { pool: 'node-runtime', poolRunner: nodeRuntimePool }
       : { pool: 'forks' })
   }
 }
-const projects = [
-  ...(process.versions.bun
-    ? [
-        {
-          extends: false,
-          ...transforms,
-          test: {
-            ...testOptions,
-            name: 'bun',
-            env: { ORCA_VITEST_RUNTIME: 'bun' },
-            pool: 'forks',
-            exclude: [...testOptions.exclude, ...NODE_RUNTIME_INCLUDE, measurementFile],
-            sequence: { groupOrder: 1 }
-          }
-        }
-      ]
-    : []),
-  nodeProject,
-  // Keep the event-loop measurement free of other suites without weakening its limits.
-  {
-    ...nodeProject,
-    test: {
-      ...nodeProject.test,
-      name: 'node-measurement',
-      include: [measurementFile],
-      exclude: testOptions.exclude,
-      maxWorkers: 1,
-      sequence: { groupOrder: 2 }
-    }
+const bunProject = {
+  extends: false,
+  ...transforms,
+  test: {
+    ...testOptions,
+    name: 'bun',
+    env: { ORCA_VITEST_RUNTIME: 'bun' },
+    pool: 'forks',
+    exclude: [...testOptions.exclude, ...nodeRuntimeInclude],
+    sequence: { groupOrder: 1 }
   }
-]
+}
+const projects = [...(process.versions.bun ? [bunProject] : []), nodeProject]
 
 export default defineConfig({
   ...transforms,
   test: {
     ...testOptions,
+    forceRerunTriggers: [
+      ...configDefaults.forceRerunTriggers,
+      '**/pnpm-lock.yaml',
+      '**/pnpm-workspace.yaml',
+      '**/config/**',
+      '**/patches/**',
+      '**/src/packages/**'
+    ],
     sequence: { sequencer: balancedShards ? TimingSequencer : RuntimeSequencer },
     ...(balancedShards
       ? {
-          reporters: ['default', resolve('config/scripts/ci-unit-timing-reporter.mjs')]
+          reporters: ['default', resolve('config/scripts/ci/sharding/ci-unit-timing-reporter.mjs')]
         }
       : {}),
     projects,

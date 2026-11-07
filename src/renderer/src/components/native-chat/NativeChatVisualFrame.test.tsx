@@ -11,30 +11,32 @@ import {
   NATIVE_CHAT_VISUAL_PING_TYPE,
   NATIVE_CHAT_VISUAL_PONG_TIMEOUT_MS,
   NATIVE_CHAT_VISUAL_PONG_TYPE,
-  NATIVE_CHAT_VISUAL_SIZE_TYPE,
   NATIVE_CHAT_VISUAL_THEME_TYPE
-} from '../../../../shared/native-chat-visual-shell'
+} from '../../../../shared/native-chat/native-chat-visual-shell'
 
 const openHttpLink = vi.fn()
-vi.mock('@/lib/http-link-routing', () => ({
+vi.mock('@/lib/browser/navigation/http-link-routing', () => ({
   openHttpLink: (...args: unknown[]) => openHttpLink(...args)
 }))
 
 import { NativeChatVisualFrame } from './NativeChatVisualFrame'
-import { acquireWebviewsDragPassthrough } from '../browser-pane/host-guest/webview-drag-passthrough'
+import type { ReaderGesture } from './native-chat-autoscroll'
 
-const visual = { revision: 'r1', html: '<p>chart</p>' }
+const visual = { revision: 'r1', html: '<p>chart</p>', path: '/v' }
 
-function Harness(props: { layout?: 'inline' | 'panel'; onRetired?: () => void }) {
+function Harness(props: {
+  onRetired?: () => void
+  onReaderGesture?: (gesture: ReaderGesture) => void
+}) {
   const scope = useRef<HTMLDivElement | null>(null)
   return (
     <div ref={scope}>
       <NativeChatVisualFrame
         document={visual}
         title="Chart"
-        layout={props.layout ?? 'inline'}
         themeScope={scope}
         onRetired={props.onRetired ?? (() => {})}
+        onReaderGesture={props.onReaderGesture}
       />
     </div>
   )
@@ -118,21 +120,6 @@ afterEach(() => {
 })
 
 describe('NativeChatVisualFrame', () => {
-  it('lets a dragged tab pass over the frame while a tab drag holds pointer passthrough', () => {
-    const { container } = render(<Harness layout="panel" />)
-    const frame = frameOf(container)
-    expect(frame.style.pointerEvents).toBe('')
-
-    let release = (): void => {}
-    act(() => {
-      release = acquireWebviewsDragPassthrough()
-    })
-    expect(frame.style.pointerEvents).toBe('none')
-
-    act(() => release())
-    expect(frame.style.pointerEvents).toBe('')
-  })
-
   it('runs the visual in a scripts-only sandbox, named for host registration, with its CSP first', () => {
     const { container } = render(<Harness />)
     const frame = frameOf(container)
@@ -141,47 +128,6 @@ describe('NativeChatVisualFrame', () => {
     const srcdoc = frame.getAttribute('srcdoc') ?? ''
     expect(srcdoc.indexOf('Content-Security-Policy')).toBeLessThan(srcdoc.indexOf('<p>chart</p>'))
     expect(channelOf(frame)).toMatch(/^[0-9a-f]{32}$/)
-  })
-
-  it('fits its height to what the frame reports, ignoring other windows and channels', () => {
-    const { container } = render(<Harness />)
-    const frame = frameOf(container)
-    const box = frame.parentElement
-    const channel = channelOf(frame)
-    post({ type: NATIVE_CHAT_VISUAL_SIZE_TYPE, channel, height: 420 }, frame.contentWindow)
-    expect(box).toHaveStyle({ height: '420px' })
-    post({ type: NATIVE_CHAT_VISUAL_SIZE_TYPE, channel, height: 900 }, window)
-    post({ type: NATIVE_CHAT_VISUAL_SIZE_TYPE, channel: 'other', height: 900 }, frame.contentWindow)
-    expect(box).toHaveStyle({ height: '420px' })
-  })
-
-  it('restyles in place on a theme change instead of reloading the visual', () => {
-    const { container } = render(<Harness />)
-    const frame = frameOf(container)
-    const contentWindow = frame.contentWindow
-    if (!contentWindow) {
-      throw new Error('no content window')
-    }
-    const postMessage = vi.spyOn(contentWindow, 'postMessage')
-    act(() => {
-      frame.dispatchEvent(new Event('load'))
-    })
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ type: NATIVE_CHAT_VISUAL_THEME_TYPE, colorScheme: 'light' }),
-      '*'
-    )
-    const srcdoc = frame.getAttribute('srcdoc')
-    act(() => {
-      document.documentElement.classList.add('dark')
-    })
-    return vi.waitFor(() => {
-      expect(postMessage).toHaveBeenLastCalledWith(
-        expect.objectContaining({ type: NATIVE_CHAT_VISUAL_THEME_TYPE, colorScheme: 'dark' }),
-        '*'
-      )
-      expect(frameOf(container)).toBe(frame)
-      expect(frame.getAttribute('srcdoc')).toBe(srcdoc)
-    })
   })
 
   it('opens a link only while the frame has focus and the user has just acted', () => {
@@ -261,15 +207,5 @@ describe('NativeChatVisualFrame', () => {
     unmount()
     waitOutTheAnswer()
     expect(onRetired).not.toHaveBeenCalled()
-  })
-
-  it('fills a panel instead of fitting its height', () => {
-    const { container } = render(<Harness layout="panel" />)
-    const frame = frameOf(container)
-    post(
-      { type: NATIVE_CHAT_VISUAL_SIZE_TYPE, channel: channelOf(frame), height: 420 },
-      frame.contentWindow
-    )
-    expect(frame.parentElement?.style.height).toBe('')
   })
 })

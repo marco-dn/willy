@@ -1,7 +1,7 @@
 import { runProcess } from '@orca/process-host'
-import { resolveCommandOnLocalPath } from '../ipc/command-path-resolver'
-import { findSystemSsh } from '../ssh/system-ssh-binary'
-import { sshGArgsForHost } from '../ssh/ssh-g-config-resolution'
+import { resolveCommandOnLocalPath } from '../ipc/command-path/command-path-resolver'
+import { findSystemSsh } from '../ssh/system-transport/system-ssh-binary'
+import { sshGArgsForHost } from '../ssh/config/ssh-g-config-resolution'
 
 export type SandboxCommand = (
   args: string[],

@@ -1,23 +1,49 @@
 # Willy Sandbox validation
 
+## Upstream integration — 2026-11-07
+
+Integrated Orca `3d8c3a899d` while retaining the Willy sandbox execution policy,
+managed SSH lifecycle guards, project linking and sandbox-only sidebar visibility.
+
+- All 344 tests in 52 focused files passed using `pnpm test:node --maxWorkers=2`.
+  This includes the actual runtime class's registration/unlink methods, project
+  persistence, SSH forwards, sandbox services and rendered component tests.
+- Node, renderer and CLI typechecks passed, as did changed-code quality,
+  design-system, React Compiler and the host-identity safety checks.
+- The three `settings-sandbox.spec.ts` tests passed through Playwright CDP in
+  hidden Electron windows with disposable profiles. They cover the catalog,
+  import/verification IPC and unavailable-service presentation; sandbox services
+  are fixtures in these tests, not a live Docker installation.
+- Desktop, mobile-web assets and the `linux-x64-glibc` server template built and
+  verified successfully. The server bundle contains no Electron imports.
+- `check:changed --base=upstream/main` also selects a broad related-test run through
+  Bun. That runner stalled locally; the focused Node suite above is the test
+  evidence, not a claim that the complete upstream suite passed.
+
+The user's live profile and existing sandboxes were not used by the automated UI
+tests. Windows/macOS packaging and a fresh live Docker create/link/stop cycle after
+this merge remain manual acceptance checks.
+
+## Earlier validation — 2026-10-01
+
 Validation on Linux, 2026-10-01, following lifecycle commit `f6f0ab43fa`.
 This is a record of evidence, not a claim that every acceptance scenario has run
 in a packaged desktop application.
 
 ## Coverage
 
-| Area | Automated evidence | Remaining live check |
-| --- | --- | --- |
-| Diagnostics | CLI parsing, errors and unavailable service; component states | Platform-specific sbx installation |
-| Provisioning | Create/adopt, selected tools, explicit folder creation, concurrent requests, failure and restart recovery | Full installer matrix against current upstream downloads |
-| Shared folders | Real Linux Git and Python scripts against temporary paths with spaces, two non-Git folders, escaping symlink and external Git metadata rejection | Native Windows/macOS mount mapping |
-| Project identity | GitLab, GitHub, no-remote and folder projection fixtures; independent two-project associations | Authenticated live GitLab clone |
-| Execution constraint | Local/SSH admission, activation race, nested projects, wrong target, old workspace rejection | Complete rendered UI/CLI/automation acceptance flow |
-| Persistence | Pre-lifecycle journal loading, pending stop and cleanup journal round trip, explicit unlink surviving projection | Running an older client against the updated host |
-| SSH | Stable sandbox identity, fallback, reconnect policy and unrelated hosts | Packaged builds on each supported platform |
-| Network and credentials | Scoped rule changes, denial parsing, temporary rule recovery, private PTY disposal and cancellation | Organization-managed network policy and real credential prompt UI |
-| Lifecycle | Stop intent, two affected projects, confirmation, shared aliases, replacement detection and external removal | Full restart cycle on Windows/macOS |
-| Components | Diagnostics, provisioning and lifecycle state tests, including unlink refresh and stale response ordering | Hidden Electron renderer through Playwright CDP |
+| Area                    | Automated evidence                                                                                                                               | Remaining live check                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Diagnostics             | CLI parsing, errors and unavailable service; component states                                                                                    | Platform-specific sbx installation                                |
+| Provisioning            | Create/adopt, selected tools, explicit folder creation, concurrent requests, failure and restart recovery                                        | Full installer matrix against current upstream downloads          |
+| Shared folders          | Real Linux Git and Python scripts against temporary paths with spaces, two non-Git folders, escaping symlink and external Git metadata rejection | Native Windows/macOS mount mapping                                |
+| Project identity        | GitLab, GitHub, no-remote and folder projection fixtures; independent two-project associations                                                   | Authenticated live GitLab clone                                   |
+| Execution constraint    | Local/SSH admission, activation race, nested projects, wrong target, old workspace rejection                                                     | Complete rendered UI/CLI/automation acceptance flow               |
+| Persistence             | Pre-lifecycle journal loading, pending stop and cleanup journal round trip, explicit unlink surviving projection                                 | Running an older client against the updated host                  |
+| SSH                     | Stable sandbox identity, fallback, reconnect policy and unrelated hosts                                                                          | Packaged builds on each supported platform                        |
+| Network and credentials | Scoped rule changes, denial parsing, temporary rule recovery, private PTY disposal and cancellation                                              | Organization-managed network policy and real credential prompt UI |
+| Lifecycle               | Stop intent, two affected projects, confirmation, shared aliases, replacement detection and external removal                                     | Full restart cycle on Windows/macOS                               |
+| Components              | Diagnostics, provisioning and lifecycle state tests, including unlink refresh and stale response ordering                                        | Hidden Electron renderer through Playwright CDP                   |
 
 Component tests use a simulated DOM. Command/service tests use fakes except the
 explicit real temporary-folder script tests. They do not establish live sbx,
@@ -93,18 +119,18 @@ design-system and SAFETY scans passed. The type-aware oxlint scan was not run;
 TypeScript checks are separate evidence. Translation-key parity, local documentation
 links and `git diff --check` also passed.
 
-| Contract | Evidence |
-| --- | --- |
-| One catalog entry per UUID | Merge, same-name replacement, incomplete creation and unavailable-service fixtures in `sandbox-catalog.test.ts`; grouping and lifecycle refresh in component tests. |
-| Import has no provisioning side effects | Real persistence and manager operation lock with fake sbx/SSH commands; only inventory reads, duplicate import, explicit second mount and identity recheck. |
-| Verification has no implicit startup or installation | Service tests assert inventory-only sbx calls, stopped-state rejection, missing SSH configuration, missing tools and explicit target registration. |
-| Imported data survives restart | Import → verify → reopen store/manager → idempotent reimport using the real persistence and lock implementations. |
-| Failed checks cannot falsely certify a guest | Wrong SSH UUID, changed inventory/mount, daemon and SSH failures, malformed results, stop intent and failed recheck persistence. |
-| Relay compatibility is distinct from runtime startup | Platform, glibc, Node/npm and local bundle tests; connection is an explicit separate UI action. |
-| Preparation requires explicit submission | Imported optional tools unchecked, creation defaults preserved, cancellation without provisioning and selected-tool request tests. |
-| Existing project restrictions survive | Backend refuses unverified imported records and failed rechecks; existing execution policy, session protection and two-project association regressions remain included. |
-| Interrupted preparation remains protected | A real Linux file lock blocks the probe while held, permits retry after release and remains unchanged. Missing locks are not created; interrupted management state remains visible. |
-| Result details remain manageable | Success starts collapsed, missing prerequisites start expanded; both use the native details control. |
+| Contract                                             | Evidence                                                                                                                                                                            |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One catalog entry per UUID                           | Merge, same-name replacement, incomplete creation and unavailable-service fixtures in `sandbox-catalog.test.ts`; grouping and lifecycle refresh in component tests.                 |
+| Import has no provisioning side effects              | Real persistence and manager operation lock with fake sbx/SSH commands; only inventory reads, duplicate import, explicit second mount and identity recheck.                         |
+| Verification has no implicit startup or installation | Service tests assert inventory-only sbx calls, stopped-state rejection, missing SSH configuration, missing tools and explicit target registration.                                  |
+| Imported data survives restart                       | Import → verify → reopen store/manager → idempotent reimport using the real persistence and lock implementations.                                                                   |
+| Failed checks cannot falsely certify a guest         | Wrong SSH UUID, changed inventory/mount, daemon and SSH failures, malformed results, stop intent and failed recheck persistence.                                                    |
+| Relay compatibility is distinct from runtime startup | Platform, glibc, Node/npm and local bundle tests; connection is an explicit separate UI action.                                                                                     |
+| Preparation requires explicit submission             | Imported optional tools unchecked, creation defaults preserved, cancellation without provisioning and selected-tool request tests.                                                  |
+| Existing project restrictions survive                | Backend refuses unverified imported records and failed rechecks; existing execution policy, session protection and two-project association regressions remain included.             |
+| Interrupted preparation remains protected            | A real Linux file lock blocks the probe while held, permits retry after release and remains unchanged. Missing locks are not created; interrupted management state remains visible. |
+| Result details remain manageable                     | Success starts collapsed, missing prerequisites start expanded; both use the native details control.                                                                                |
 
 The Linux shell probe is also executed against a temporary path containing spaces
 and an apostrophe. It validates identity and mount and leaves that folder empty.

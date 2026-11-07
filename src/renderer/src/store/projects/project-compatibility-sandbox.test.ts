@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Project } from '../../../../shared/project-types'
-import { mergeProjectCompatibilityProject } from './project-compatibility-core'
+import { mergeProjectCompatibilityProject } from '../../../../shared/project-compatibility-merge'
 import { carryProjectStateThroughIdentityChange } from '../../../../shared/project-identity-succession'
 const project: Project = {
   id: 'p',

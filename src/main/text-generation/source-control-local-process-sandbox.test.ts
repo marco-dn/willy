@@ -18,9 +18,7 @@ function run(spawnAgent: Parameters<typeof runLocalSourceControlPlan>[0]['spawnA
     plan: { binary: 'agent', args: [], stdinPayload: 'prompt', label: 'agent' },
     cwd: '/repo',
     env: undefined,
-    emptyResultName: 'commit message',
     operation: 'commit-message',
-    holdHomeLockUntilExit: false,
     spawnAgent
   })
 }
@@ -49,7 +47,7 @@ describe('local source-control agents inside a sandbox project', () => {
     expect(releaseMock).toHaveBeenCalledOnce()
   })
 
-  it('releases the claim when a timed-out child ignores the kill and never closes', async () => {
+  it('keeps the claim after a timeout until the child confirms its exit', async () => {
     vi.useFakeTimers()
     const child = createMockDiscoveryChild()
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fixture implements the process events and streams exercised by this execution.
@@ -58,8 +56,10 @@ describe('local source-control agents inside a sandbox project', () => {
     await vi.advanceTimersByTimeAsync(SOURCE_CONTROL_GENERATION_TIMEOUT_MS)
 
     await expect(execution.result).resolves.toMatchObject({ success: false })
-    await execution.processClosed
     expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(releaseMock).not.toHaveBeenCalled()
+    child.emit('exit', 1)
+    await execution.processClosed
     expect(releaseMock).toHaveBeenCalledOnce()
   })
 

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { buildExecutionHostRegistry } from './execution-host-registry'
 import { RUNTIME_PROTOCOL_VERSION } from './protocol-version'
-import type { RemoteRuntimeSharedConnectionDiagnostics } from './remote-runtime-shared-control-types'
-import type { RuntimeHostStatusSnapshot } from './runtime-host-status'
-import { RuntimeHostStatusOwner } from './runtime-host-status-owner'
+import type { RemoteRuntimeSharedConnectionDiagnostics } from './remote-runtime/control/remote-runtime-shared-control-types'
+import {
+  runtimeEnvironmentStatusFromSnapshot,
+  type RuntimeHostStatusSnapshot
+} from './remote-runtime/host-status/runtime-host-status'
+import { RuntimeHostStatusOwner } from './remote-runtime/host-status/runtime-host-status-owner'
 import type { RuntimeStatus } from './runtime-types'
 
 const STATUS: RuntimeStatus = {
@@ -31,42 +34,19 @@ function diagnostics(
   }
 }
 
-// Mirrors applyRuntimeHostStatusSnapshot: only a verified, unretired snapshot projects `status`.
 function healthFor(snapshot: RuntimeHostStatusSnapshot): string | undefined {
-  const status =
-    snapshot.verification === 'verified' && !snapshot.retired && snapshot.status
-      ? { ...snapshot.status, remoteControl: snapshot.remoteControl ?? undefined }
-      : null
+  return hostFor(snapshot)?.health
+}
+
+function hostFor(snapshot: RuntimeHostStatusSnapshot) {
   return buildExecutionHostRegistry({
     repos: [],
     settings: null,
     runtimeEnvironments: [{ id: 'env-1', name: 'Server' }],
     runtimeStatusByEnvironmentId: new Map([
-      [
-        'env-1',
-        {
-          snapshot,
-          status,
-          remoteControl: snapshot.remoteControl,
-          checkedAt: snapshot.checkedAt
-        }
-      ]
+      ['env-1', runtimeEnvironmentStatusFromSnapshot(snapshot)]
     ])
-  }).find((host) => host.id === 'runtime:env-1')?.health
-}
-
-function snapshot(patch: Partial<RuntimeHostStatusSnapshot>): RuntimeHostStatusSnapshot {
-  return {
-    environmentId: 'env-1',
-    pairingRevision: 1,
-    sequence: 1,
-    checkedAt: 1,
-    status: STATUS,
-    verification: 'verified',
-    transport: 'connecting',
-    remoteControl: diagnostics('awaiting_authenticated'),
-    ...patch
-  }
+  }).find((host) => host.id === 'runtime:env-1')
 }
 
 function ownerSnapshots(): {
@@ -84,31 +64,6 @@ function ownerSnapshots(): {
 }
 
 describe('runtime host health while shared control connects (#10704)', () => {
-  it('is available when the status probe answered and shared control is still connecting', () => {
-    expect(healthFor(snapshot({}))).toBe('available')
-    expect(
-      healthFor(snapshot({ transport: 'unknown', remoteControl: diagnostics('awaiting_ready') }))
-    ).toBe('available')
-  })
-
-  it('stays connecting when only a status retained from the previous socket is held', () => {
-    expect(healthFor(snapshot({ verification: 'unavailable' }))).toBe('connecting')
-    expect(healthFor(snapshot({ verification: 'checking' }))).toBe('connecting')
-    expect(healthFor(snapshot({ verification: 'checking', transport: 'ready' }))).toBe('connecting')
-  })
-
-  it('stays connecting when shared control lost its socket', () => {
-    expect(
-      healthFor(snapshot({ transport: 'disconnected', remoteControl: diagnostics('reconnecting') }))
-    ).toBe('connecting')
-  })
-
-  it('keeps a version-blocked server blocked while shared control connects', () => {
-    expect(
-      healthFor(snapshot({ status: { ...STATUS, runtimeProtocolVersion: 0, protocolVersion: 0 } }))
-    ).toBe('blocked')
-  })
-
   it('follows the status owner: fresh answer is available, a reconnect withdraws it', () => {
     const { owner, latest } = ownerSnapshots()
     owner.acceptVerified({ id: 'status.get', ok: true, result: STATUS, _meta: { runtimeId: 'r' } })

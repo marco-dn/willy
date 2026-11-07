@@ -1,4 +1,4 @@
-import { quotePosixShell } from '../../shared/wsl-login-shell-command'
+import { quotePosixShell } from '../../shared/shell/launch/shell-argument-quoting'
 import type { SandboxTool } from '../../shared/sandbox-provisioning-types'
 import type { SandboxEnvironmentCheck } from '../../shared/sandbox-environment-types'
 import { SANDBOX_BASE_TOOLS } from './sandbox-installers'

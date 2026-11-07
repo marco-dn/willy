@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
 import { z } from 'zod'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import type { SandboxAccess } from './sandbox-command'
 import type { SandboxExecutionPolicy } from './sandbox-execution-policy'
@@ -148,7 +148,7 @@ export class SandboxProjectService {
         if (!repo) {
           throw new Error('Project disappeared while linking its sandbox.')
         }
-        this.deps.store.updateRepo(repo.id, { worktreeBasePath: verified.worktreePath }, hostId)
+        this.deps.store.updateRepo(repo, { worktreeBasePath: verified.worktreePath })
         const setup = this.deps.store
           .getProjectHostSetups()
           .find((entry) => entry.repoId === repo.id && entry.hostId === hostId)
@@ -156,7 +156,7 @@ export class SandboxProjectService {
           throw new Error('Sandbox project setup could not be verified.')
         }
         await this.deps.store.runDurableMutation(() => {
-          this.deps.store.setProjectSandboxBinding(project.id, {
+          this.deps.store.setProjectSandboxBinding(project, {
             ...preliminary,
             executionHostId: hostId,
             runtimeEnvironmentId: environmentId,
@@ -189,10 +189,10 @@ export class SandboxProjectService {
       const binding = project.sandboxBinding
       try {
         await this.deps.store.runDurableMutation(() => {
-          this.deps.store.setProjectSandboxBinding(projectId, null)
+          this.deps.store.setProjectSandboxBinding(project, null)
           return {
             value: undefined,
-            rollback: () => this.deps.store.setProjectSandboxBinding(projectId, binding)
+            rollback: () => this.deps.store.setProjectSandboxBinding(project, binding)
           }
         })
         if (binding.runtimeEnvironmentId) {
@@ -202,7 +202,7 @@ export class SandboxProjectService {
         }
       } catch (error) {
         await this.deps.store.runDurableMutation(() => {
-          this.deps.store.setProjectSandboxBinding(projectId, binding)
+          this.deps.store.setProjectSandboxBinding(project, binding)
           return { value: undefined }
         })
         throw error

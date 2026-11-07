@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { quotePosixShell } from '../../shared/wsl-login-shell-command'
+import { quotePosixShell } from '../../shared/shell/launch/shell-argument-quoting'
 import { runProcess } from '@orca/process-host'
 import { parseSandboxEnvironmentProbe, sandboxEnvironmentProbe } from './sandbox-environment-probe'
 

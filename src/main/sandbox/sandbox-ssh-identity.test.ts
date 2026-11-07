@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { verifySandboxSshIdentity } from './sandbox-ssh-identity'
 const { active, exec } = vi.hoisted(() => ({ active: vi.fn(), exec: vi.fn() }))
-vi.mock('../ssh/ssh-target-registry', () => ({
+vi.mock('../ssh/targets/ssh-target-registry', () => ({
   getSshConnectionManager: () => ({ getConnection: active })
 }))
-vi.mock('../ssh/ssh-relay-exec-command', () => ({ execCommand: exec }))
+vi.mock('../ssh/remote-exec/remote-exec-command', () => ({ execCommand: exec }))
 const binding = {
   sandboxId: 'sandbox-id',
   sandboxName: 'demo',

@@ -1,20 +1,20 @@
 import type { ExecutionHostId } from '../../shared/execution-host'
 import { requestSandboxRuntime } from './sandbox-runtime-client'
 import { isSandboxSshTargetConfirmedRemoved } from './sandbox-lifecycle-guard'
-import { listRegisteredSshTargets, getRegisteredSshState } from '../ssh/ssh-target-registry'
+import { listRegisteredSshTargets, getRegisteredSshState } from '../ssh/targets/ssh-target-registry'
 import type { Project } from '../../shared/project-types'
 import { getRepoExecutionHostId, parseExecutionHostId } from '../../shared/execution-host'
 import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
-import type { Store } from '../persistence'
+import type { RuntimeStore } from '../runtime/runtime-store-contract'
 import { getProvider } from '../ipc/pty/provider/registry'
-import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
-import { verifyUnstoppedPtys } from '../runtime/unstopped-pty-verification'
+import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/host/structured-agent-session-registry'
+import { verifyUnstoppedPtys } from '../runtime/workspaces/removal/unstopped-pty-verification'
 import { toAppSshPtyId } from '../../shared/ssh-pty-id'
 import { resolveSandboxExecutionTargets } from './sandbox-execution-boundary'
 
 export async function assertSandboxProjectSessionsClosed(
   store: Pick<
-    Store,
+    RuntimeStore,
     'getRepos' | 'getProjects' | 'getWorktreeMeta' | 'getAllWorktreeMeta' | 'getSshRemotePtyLeases'
   >,
   project: Project,
@@ -53,15 +53,13 @@ export async function assertSandboxProjectSessionsClosed(
       )
     }
   }
-  const unresolvedLeases = store
-    .getSshRemotePtyLeases()
-    .filter(
-      (lease) =>
-        hosts.has(`ssh:${lease.targetId}`) &&
-        lease.state !== 'terminated' &&
-        lease.worktreeId &&
-        project.sourceRepoIds.includes(getRepoIdFromWorktreeId(lease.worktreeId))
-    )
+  const unresolvedLeases = (store.getSshRemotePtyLeases?.() ?? []).filter(
+    (lease) =>
+      hosts.has(`ssh:${lease.targetId}`) &&
+      lease.state !== 'terminated' &&
+      lease.worktreeId &&
+      project.sourceRepoIds.includes(getRepoIdFromWorktreeId(lease.worktreeId))
+  )
   for (const targetId of new Set(unresolvedLeases.map((lease) => lease.targetId))) {
     const ids = unresolvedLeases
       .filter((lease) => lease.targetId === targetId)
@@ -119,7 +117,7 @@ export async function assertSandboxProjectSessionsClosed(
       processes.some((process) => {
         const repoId = process.worktreeId ? getRepoIdFromWorktreeId(process.worktreeId) : undefined
         // Workspace ownership takes precedence over an ancestor project's directory.
-        if (repoId && store.getProjects().some((entry) => entry.sourceRepoIds.includes(repoId))) {
+        if (repoId && store.getProjects?.().some((entry) => entry.sourceRepoIds.includes(repoId))) {
           return project.sourceRepoIds.includes(repoId)
         }
         return resolveSandboxExecutionTargets(store, {

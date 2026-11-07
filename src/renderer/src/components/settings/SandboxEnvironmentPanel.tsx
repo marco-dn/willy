@@ -32,18 +32,20 @@ export function SandboxEnvironmentPanel({
     active.current = true
     setBusy(true)
     setError(undefined)
-    try {
-      await action()
-    } catch (error) {
-      if (mounted.current) {
-        setError(error instanceof Error ? error.message : String(error))
+    await (async () => {
+      try {
+        await action()
+      } catch (error) {
+        if (mounted.current) {
+          setError(error instanceof Error ? error.message : String(error))
+        }
       }
-    } finally {
+    })().finally(() => {
       active.current = false
       if (mounted.current) {
         setBusy(false)
       }
-    }
+    })
   }
   return (
     <section className="space-y-3">

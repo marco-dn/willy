@@ -12,8 +12,10 @@ const mocks = vi.hoisted(() => {
   }
 })
 vi.mock('@orca/process-host', () => ({ runProcess: mocks.run }))
-vi.mock('../ssh/system-ssh-binary', () => ({ findSystemSsh: () => '/usr/bin/ssh' }))
-vi.mock('../ssh/ssh-target-registry', () => ({
+vi.mock('../ssh/system-transport/system-ssh-binary', () => ({
+  findSystemSsh: () => '/usr/bin/ssh'
+}))
+vi.mock('../ssh/targets/ssh-target-registry', () => ({
   getSshTargetRegistryStore: () => ({
     listTargets: () => mocks.targets,
     getTarget: (id: string) => mocks.targets.find((target) => target.id === id)
@@ -21,7 +23,7 @@ vi.mock('../ssh/ssh-target-registry', () => ({
   connectRegisteredSshTarget: mocks.connect,
   getRegisteredSshState: mocks.getState
 }))
-vi.mock('../ipc/ssh-target-crud-handlers', () => ({ addRegisteredSshTarget: mocks.add }))
+vi.mock('../ipc/ssh/ssh-target-crud-handlers', () => ({ addRegisteredSshTarget: mocks.add }))
 import {
   connectSandboxSshTarget,
   inspectSandboxSshTarget,

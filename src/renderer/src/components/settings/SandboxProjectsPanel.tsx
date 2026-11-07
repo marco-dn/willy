@@ -19,7 +19,7 @@ export function SandboxProjectsPanel({
 }): React.JSX.Element {
   useTranslation()
   const id = useId()
-  const mounted = useMountedRef()
+  const mountedRef = useMountedRef()
   const inFlight = useRef(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,25 +36,27 @@ export function SandboxProjectsPanel({
   const selected = projects.find((project) => project.id === projectId)
   const availableProjects = projects.filter((project) => !project.sandboxBinding)
   const refresh = useCallback(async () => {
-    try {
-      const next = await window.api.projects.list()
-      if (mounted.current) {
-        setProjects(next)
-        setLoadError(undefined)
-        setProjectId((current) =>
-          next.some((project) => project.id === current && !project.sandboxBinding) ? current : ''
-        )
+    await (async () => {
+      try {
+        const next = await window.api.projects.list()
+        if (mountedRef.current) {
+          setProjects(next)
+          setLoadError(undefined)
+          setProjectId((current) =>
+            next.some((project) => project.id === current && !project.sandboxBinding) ? current : ''
+          )
+        }
+      } catch (error) {
+        if (mountedRef.current) {
+          setLoadError(error instanceof Error ? error.message : String(error))
+        }
       }
-    } catch (error) {
-      if (mounted.current) {
-        setLoadError(error instanceof Error ? error.message : String(error))
-      }
-    } finally {
-      if (mounted.current) {
+    })().finally(() => {
+      if (mountedRef.current) {
         setLoading(false)
       }
-    }
-  }, [mounted])
+    })
+  }, [mountedRef])
   useEffect(() => {
     const update = () => {
       void refresh()
@@ -69,19 +71,21 @@ export function SandboxProjectsPanel({
     inFlight.current = true
     setBusy(true)
     setError(undefined)
-    try {
-      await operation()
-      await refresh()
-    } catch (error) {
-      if (mounted.current) {
-        setError(error instanceof Error ? error.message : String(error))
+    await (async () => {
+      try {
+        await operation()
+        await refresh()
+      } catch (error) {
+        if (mountedRef.current) {
+          setError(error instanceof Error ? error.message : String(error))
+        }
       }
-    } finally {
+    })().finally(() => {
       inFlight.current = false
-      if (mounted.current) {
+      if (mountedRef.current) {
         setBusy(false)
       }
-    }
+    })
   }
   return (
     <section className="space-y-4">

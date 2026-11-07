@@ -1,5 +1,5 @@
 import type { SandboxTool } from '../../shared/sandbox-provisioning-types'
-import { quotePosixShell } from '../../shared/wsl-login-shell-command'
+import { quotePosixShell } from '../../shared/shell/launch/shell-argument-quoting'
 import { sandboxGithubSshScript } from './sandbox-github-ssh'
 import { sandboxGithubHttpsScript } from './sandbox-github-https'
 

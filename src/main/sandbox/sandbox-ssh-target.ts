@@ -1,12 +1,12 @@
 import { runProcess } from '@orca/process-host'
-import { findSystemSsh } from '../ssh/system-ssh-binary'
-import { parseSshGOutput, sshGArgsForHost } from '../ssh/ssh-g-config-resolution'
+import { findSystemSsh } from '../ssh/system-transport/system-ssh-binary'
+import { parseSshGOutput, sshGArgsForHost } from '../ssh/config/ssh-g-config-resolution'
 import {
   getSshTargetRegistryStore,
   connectRegisteredSshTarget,
   getRegisteredSshState
-} from '../ssh/ssh-target-registry'
-import { addRegisteredSshTarget } from '../ipc/ssh-target-crud-handlers'
+} from '../ssh/targets/ssh-target-registry'
+import { addRegisteredSshTarget } from '../ipc/ssh/ssh-target-crud-handlers'
 
 export class SandboxSshConfigurationError extends Error {
   constructor(

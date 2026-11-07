@@ -28,7 +28,7 @@ export function SandboxPane(): React.JSX.Element {
     inFlight.current = true
     setState({ status: 'loading' })
     setRevision((value) => value + 1)
-    try {
+    await (async () => {
       do {
         refreshRequested.current = false
         try {
@@ -42,9 +42,9 @@ export function SandboxPane(): React.JSX.Element {
           }
         }
       } while (mounted.current && refreshRequested.current)
-    } finally {
+    })().finally(() => {
       inFlight.current = false
-    }
+    })
   }, [mounted])
 
   useEffect(() => {

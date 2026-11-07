@@ -4,14 +4,15 @@ import type {
   TerminalInputAckKind,
   TerminalStreamFrame,
   TerminalStreamOpcode
-} from '../../../../../shared/terminal-stream-protocol'
+} from '../../../../../shared/terminal/stream/terminal-stream-protocol'
 import type { TerminalOutputFrameChunk } from '../../terminal-output-frame-chunks'
 import type {
   TerminalMultiplexSnapshotRequestFrame,
   TerminalMultiplexSubscribeFrame
 } from './stream-schemas'
 import type { TerminalMultiplexStream } from './terminal-stream-types'
-import type { TerminalStreamEndVerdict } from '../../../../../shared/terminal-stream-end-verdict'
+import type { MultiplexPtyWaitAdmission } from './terminal-multiplex-pty-wait-admission'
+import type { TerminalStreamEndVerdict } from '../../../../../shared/terminal/stream/terminal-stream-end-verdict'
 
 export type MultiplexSubscribeRequest = z.infer<typeof TerminalMultiplexSubscribeFrame>
 export type MultiplexSnapshotRequest = z.infer<typeof TerminalMultiplexSnapshotRequestFrame>
@@ -20,6 +21,8 @@ export type MultiplexEmit = (result: unknown) => void
 export type TerminalMultiplexConnectionBase = {
   runtime: RpcContext['runtime']
   connectionId: string
+  // The authenticated device, whose departure ends this connection's views.
+  viewerDeviceId: string | undefined
   sendBinary: NonNullable<RpcContext['sendBinary']>
   registerBinaryStreamHandler: NonNullable<RpcContext['registerBinaryStreamHandler']>
   signal: RpcContext['signal']
@@ -28,6 +31,7 @@ export type TerminalMultiplexConnectionBase = {
   cursor: number
   streams: Map<number, TerminalMultiplexStream>
   pendingPtyWaitControllers: Map<number, Set<AbortController>>
+  ptyWaitAdmission: MultiplexPtyWaitAdmission
   ackTotalInFlightBytes: number
   ackTotalWindowBytes: number
   ackFlushCursorStreamId: number | null

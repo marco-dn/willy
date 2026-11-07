@@ -6,7 +6,7 @@ import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Project } from '../../shared/project-types'
 import type { Repo } from '../../shared/repo-types'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import { projectHostSetupProjectionFromRepos } from '../../shared/project-host-setup-projection'
 import { SandboxExecutionPolicy } from './sandbox-execution-policy'
 import { SandboxProjectService } from './sandbox-project-service'
@@ -50,8 +50,8 @@ function fixture(
         : {})
     }))
   }
-  const updateRepo: Store['updateRepo'] = (id, updates) => {
-    const repo = repos.find((entry) => entry.id === id)
+  const updateRepo: Store['updateRepo'] = (target, updates) => {
+    const repo = repos.find((entry) => entry.id === target.id)
     if (!repo) {
       return null
     }
@@ -59,8 +59,8 @@ function fixture(
     sync()
     return repo
   }
-  const setProjectSandboxBinding: Store['setProjectSandboxBinding'] = (id, binding) => {
-    const project = projects.find((entry) => entry.id === id)
+  const setProjectSandboxBinding: Store['setProjectSandboxBinding'] = (target, binding) => {
+    const project = projects.find((entry) => entry.id === target.id)
     if (!project) {
       throw new Error('missing')
     }
@@ -205,7 +205,10 @@ describe('sandbox project service', () => {
       badgeColor: 'blue',
       addedAt: 1
     })
-    store.updateRepo('second', { explicitProjectId: 'repo:second' })
+    store.updateRepo(
+      { id: 'second', executionHostId: 'local' },
+      { explicitProjectId: 'repo:second' }
+    )
     const second: Repo = {
       id: 'remote-second',
       path: '/shared/second',
@@ -217,7 +220,7 @@ describe('sandbox project service', () => {
     }
     register.mockImplementationOnce(async () => {
       store.getRepos().push(second)
-      store.updateRepo(second.id, { explicitProjectId: 'repo:second' })
+      store.updateRepo(second, { explicitProjectId: 'repo:second' })
       return { repo: second, alreadyExisted: false }
     })
     vi.mocked(runSandboxSsh).mockResolvedValueOnce(

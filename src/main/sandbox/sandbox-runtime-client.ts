@@ -1,9 +1,12 @@
-import { sendRemoteRuntimeRequestWithStatusPreflight } from '../../shared/remote-runtime-client'
-import { getPreferredPairedRuntimeConnection } from '../../shared/runtime-environments'
+import { sendRemoteRuntimeRequestWithStatusPreflight } from '../../shared/remote-runtime/remote-runtime-client'
+import { getPreferredPairedRuntimeConnection } from '../../shared/remote-runtime/host-catalog/runtime-environments'
 import { ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES } from '../../shared/electron-remote-runtime-client-capabilities'
 import { getAppEnvironment } from '../../shared/app-environment'
-import { listEnvironments, resolveEnvironment } from '../../shared/runtime-environment-store'
-import { getRegisteredSshState } from '../ssh/ssh-target-registry'
+import {
+  listEnvironments,
+  resolveEnvironment
+} from '../../shared/remote-runtime/host-store/runtime-environment-store'
+import { getRegisteredSshState } from '../ssh/targets/ssh-target-registry'
 
 export function sandboxRuntimeEnvironmentId(targetId: string): string {
   const state = getRegisteredSshState(targetId)
@@ -23,7 +26,8 @@ export async function requestSandboxRuntime(
   if (!environment.runtimeId) {
     throw new Error('The sandbox server identity has not been verified. Reconnect it.')
   }
-  const { ensureOrcadManagedTunnel } = await import('../ssh/orcad-managed-tunnel')
+  const { ensureOrcadManagedTunnel } =
+    await import('../managed-server/lifecycle/orcad-managed-tunnel')
   await ensureOrcadManagedTunnel(userData, environmentId)
   const current = resolveEnvironment(userData, environmentId)
   if (current.runtimeId !== environment.runtimeId) {
@@ -56,7 +60,9 @@ export function sandboxRuntimeHostIds(targetIds: string[]): string[] {
   return listEnvironments(getAppEnvironment().getPath('userData'))
     .filter(
       (environment) =>
-        environment.orcadDeployment && ids.has(environment.orcadDeployment.sshTargetId)
+        environment.orcadDeployment &&
+        'sshTargetId' in environment.orcadDeployment &&
+        ids.has(environment.orcadDeployment.sshTargetId)
     )
     .map((environment) => `runtime:${environment.id}`)
 }

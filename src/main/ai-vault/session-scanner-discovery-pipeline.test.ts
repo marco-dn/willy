@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as FsPromises from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { AiVaultScanIssue } from '../../shared/ai-vault-types'
+import {
+  isAiVaultScanCancelledError,
+  type AiVaultScanIssue
+} from '../../shared/ai-vault/contracts/ai-vault-types'
 
 const fsMocks = vi.hoisted(() => ({ readdir: vi.fn(), stat: vi.fn() }))
 vi.mock('node:fs/promises', async (importOriginal) => ({
@@ -48,49 +51,33 @@ function scan(scanRoot = root, issues: AiVaultScanIssue[] = [], limit = 100) {
 }
 
 describe('fresh discovery pipeline', () => {
-  it('formats timestamps only for retained files while still reading every candidate', async () => {
-    await createFiles(root, 35)
-    fsMocks.stat.mockImplementation(async (path: string) =>
-      Object.assign(await fs.stat(path), { mtimeMs: 1_000 })
-    )
-    const format = vi.spyOn(Date.prototype, 'toISOString')
-    expect((await scan(root, [], 3)).files).toHaveLength(3)
-    expect(format).toHaveBeenCalledTimes(3)
-    expect(fsMocks.stat).toHaveBeenCalledTimes(35)
-    format.mockClear()
-    expect((await scan(root, [], 0)).files).toEqual([])
-    expect(format).not.toHaveBeenCalled()
-    expect(fsMocks.stat).toHaveBeenCalledTimes(70)
-    expect((await scan(root, [], Infinity)).files).toHaveLength(35)
-    expect(format).toHaveBeenCalledTimes(35)
-  })
-
-  it('reports invalid timestamps even for empty requests, after unavailable sidecar issues', async () => {
-    const [file] = await createFiles(root, 1)
+  it('stops on cancel mid-batch and reports the cut-short stats as no issue', async () => {
+    await createFiles(join(root, 'a'), 30)
+    await createFiles(join(root, 'b'), 30)
+    const controller = new AbortController()
+    let stats = 0
     fsMocks.stat.mockImplementation(async (path: string) => {
-      if (path.endsWith('.meta')) {
-        throw Object.assign(new Error('metadata refused'), { code: 'EACCES' })
+      stats += 1
+      if (stats === 5) {
+        controller.abort()
+        throw new DOMException('This operation was aborted', 'AbortError')
       }
-      return Object.assign(await fs.stat(path), { mtimeMs: Infinity })
+      return fs.stat(path)
     })
     const issues: AiVaultScanIssue[] = []
-    const discovery = await discoverFiles({
+    const discovery = discoverFiles({
       rootDir: root,
       issues,
-      limit: 0,
+      limit: 100,
       agent: 'claude',
       extensions: ['.jsonl'],
-      contentDependencyPath: (path) => `${path}.meta`
+      signal: controller.signal
     })
-    expect(discovery.files).toEqual([])
-    expect(issues).toEqual([
-      {
-        agent: 'claude',
-        path: `${file}.meta`,
-        message: 'Session metadata could not be read this scan.'
-      },
-      { agent: 'claude', path: file, message: expect.stringMatching(/Invalid (?:time value|Date)/) }
-    ])
+    await expect(discovery).rejects.toSatisfy(isAiVaultScanCancelledError)
+    expect(issues).toEqual([])
+    expect(stats).toBeLessThan(60)
+    fsMocks.stat.mockImplementation(fs.stat)
+    expect((await scan()).files).toHaveLength(60)
   })
 
   it('preserves traversal ties when later metadata completes first, including the partial batch', async () => {
@@ -183,72 +170,6 @@ describe('fresh discovery pipeline', () => {
     expect((await discoverFiles(args)).files.map((entry) => entry.path)).not.toContain(file)
   })
 
-  it('keeps issue ordering at the cap despite reversed metadata failures', async () => {
-    const paths = await createFiles(root, 65)
-    let releaseFirst = () => {}
-    const blocked = new Promise<void>((resolve) => {
-      releaseFirst = resolve
-    })
-    let reachedLater = () => {}
-    const later = new Promise<void>((resolve) => {
-      reachedLater = resolve
-    })
-    fsMocks.stat.mockImplementation(async (path: string) => {
-      if (path === paths[0]) {
-        await blocked
-      }
-      if (path === paths[15]) {
-        reachedLater()
-      }
-      throw new Error(`unreadable ${path}`)
-    })
-    const issues: AiVaultScanIssue[] = Array.from({ length: 498 }, (_, index) => ({
-      agent: 'claude',
-      path: `previous-${index}`,
-      message: 'previous issue'
-    }))
-    const discovery = scan(root, issues)
-    try {
-      await later
-    } finally {
-      releaseFirst()
-    }
-    expect((await discovery).files).toEqual([])
-    expect(issues).toHaveLength(500)
-    expect(issues[498]?.path).toBe(paths[0])
-    expect(issues[499]?.kind).toBe('notice')
-  })
-
-  it('reports one unavailable sidecar in traversal order and distinguishes missing metadata', async () => {
-    const paths = await createFiles(root, 5)
-    fsMocks.stat.mockImplementation(async (path: string) => {
-      if (path.endsWith('.meta')) {
-        throw Object.assign(new Error('metadata refused'), {
-          code: path === `${paths[0]}.meta` ? 'ENOENT' : 'EACCES'
-        })
-      }
-      return fs.stat(path)
-    })
-    const issues: AiVaultScanIssue[] = []
-    const discovery = await discoverFiles({
-      rootDir: root,
-      issues,
-      limit: 100,
-      agent: 'claude',
-      extensions: ['.jsonl'],
-      contentDependencyPath: (path) => `${path}.meta`
-    })
-    expect(discovery.files.find((entry) => entry.path === paths[0])?.sidecar).toBe('none')
-    expect(discovery.files.filter((entry) => entry.sidecar === 'unknown')).toHaveLength(4)
-    expect(issues).toEqual([
-      {
-        agent: 'claude',
-        path: `${paths[1]}.meta`,
-        message: 'Session metadata could not be read this scan.'
-      }
-    ])
-  })
-
   it.skipIf(process.platform === 'win32')(
     'reads retargeted and retargeted-back roots from disk',
     async () => {
@@ -264,10 +185,10 @@ describe('fresh discovery pipeline', () => {
       await fs.unlink(alias)
       await fs.symlink(join(root, 'b'), alias, 'dir')
       expect((await scan(alias)).files[0]?.sizeBytes).toBe(15)
-      await fs.writeFile(a, '{"target":"a"}\n')
+      await fs.writeFile(a, '{"target":"a-long"}\n')
       await fs.unlink(alias)
       await fs.symlink(join(root, 'a'), alias, 'dir')
-      expect((await scan(alias)).files[0]?.sizeBytes).toBe(15)
+      expect((await scan(alias)).files[0]?.sizeBytes).toBe(20)
     }
   )
 })

@@ -12,7 +12,7 @@ import {
 import { getRepoIdFromWorktreeId, splitWorktreeId } from '../../shared/worktree/id'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import type { RuntimeStore } from '../runtime/runtime-store-contract'
-import { getRegisteredSshState } from '../ssh/ssh-target-registry'
+import { getRegisteredSshState } from '../ssh/targets/ssh-target-registry'
 import { createSandboxCommand } from './sandbox-command'
 import { parseSbxInventory } from './sbx-response'
 import { SandboxExecutionPolicy, type SandboxExecutionTarget } from './sandbox-execution-policy'

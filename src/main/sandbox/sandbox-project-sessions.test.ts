@@ -12,12 +12,12 @@ const { listProcesses, removed, connectionState } = vi.hoisted(() => ({
   connectionState: vi.fn()
 }))
 vi.mock('./sandbox-lifecycle-guard', () => ({ isSandboxSshTargetConfirmedRemoved: removed }))
-vi.mock('../ssh/ssh-target-registry', () => ({
+vi.mock('../ssh/targets/ssh-target-registry', () => ({
   listRegisteredSshTargets: () => [{ id: 'sandbox', label: 'Old sandbox', host: 'old.sbx' }],
   getRegisteredSshState: connectionState
 }))
 vi.mock('../ipc/pty/provider/registry', () => ({ getProvider: () => ({ listProcesses }) }))
-vi.mock('../native-chat/agent-session-wire/structured-agent-session-registry', () => ({
+vi.mock('../native-chat/agent-session-wire/host/structured-agent-session-registry', () => ({
   getStructuredAgentSessionHost: () => null
 }))
 const project: Project = {

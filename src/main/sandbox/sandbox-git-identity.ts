@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { quotePosixShell } from '../../shared/wsl-login-shell-command'
+import { quotePosixShell } from '../../shared/shell/launch/shell-argument-quoting'
 
 export const sandboxGitIdentitySchema = z
   .string()

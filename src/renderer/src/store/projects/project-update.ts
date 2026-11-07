@@ -1,11 +1,11 @@
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { Project } from '../../../../shared/project-types'
-import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '../../runtime/rpc/calls/runtime-rpc-call'
 import { notifyInstalledAgentSkillsChanged } from '@/hooks/installed-agent-skill-discovery'
 import type { RepoSlice } from '../repos/repo-state'
 import { getProjectSetupRuntimeTarget } from './project-host-routing'
-import { mergeUpdatedProjectCompatibilityProject } from './project-compatibility-core'
+import { mergeUpdatedProjectCompatibilityProject } from '../../../../shared/project-compatibility-merge'
 import { normalizeProjectRow } from '../../../../shared/project-catalog-row-normalization'
 
 export function createProjectUpdateActions(

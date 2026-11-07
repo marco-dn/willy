@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { resolveCommandOnLocalPath } from '../ipc/command-path-resolver'
+import { resolveCommandOnLocalPath } from '../ipc/command-path/command-path-resolver'
 import { spawnNativeDaemonPty } from '../daemon/pty-subprocess/native-pty-spawn'
 
 export async function spawnSandboxCredentialPty(name: string, cols: number, rows: number) {

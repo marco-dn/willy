@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import type { SandboxRuntimeProjectRequest } from '../../shared/sandbox-runtime-contract'
 import { requestSandboxRuntime, sandboxRuntimeEnvironmentId } from './sandbox-runtime-client'
 

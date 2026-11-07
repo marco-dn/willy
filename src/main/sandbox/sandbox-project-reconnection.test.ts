@@ -33,8 +33,8 @@ function fixture() {
     worktreeBasePath: '/shared/worktrees',
     connectionId: 'ssh'
   }
-  const persist = vi.fn((id: string, binding: Project['sandboxBinding']) => {
-    expect(id).toBe('p')
+  const persist = vi.fn((target: Project, binding: Project['sandboxBinding']) => {
+    expect(target.id).toBe('p')
     project.sandboxBinding = binding
   })
   const store = {

@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ run: vi.fn(), resolve: vi.fn() }))
 vi.mock('@orca/process-host', () => ({ runProcess: mocks.run }))
-vi.mock('../ipc/command-path-resolver', () => ({ resolveCommandOnLocalPath: mocks.resolve }))
-vi.mock('../ssh/system-ssh-binary', () => ({ findSystemSsh: () => '/usr/bin/ssh' }))
+vi.mock('../ipc/command-path/command-path-resolver', () => ({
+  resolveCommandOnLocalPath: mocks.resolve
+}))
+vi.mock('../ssh/system-transport/system-ssh-binary', () => ({
+  findSystemSsh: () => '/usr/bin/ssh'
+}))
 import { createSandboxCommand, runSandboxSsh } from './sandbox-command'
 beforeEach(() => {
   vi.clearAllMocks()

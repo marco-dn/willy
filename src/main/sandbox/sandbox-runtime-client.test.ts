@@ -3,15 +3,19 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), state: vi.fn(), environment: vi
 vi.mock('../../shared/app-environment', () => ({
   getAppEnvironment: () => ({ getPath: () => '/profile' })
 }))
-vi.mock('../../shared/runtime-environment-store', () => ({ resolveEnvironment: mocks.environment }))
-vi.mock('../ssh/ssh-target-registry', () => ({ getRegisteredSshState: mocks.state }))
-vi.mock('../../shared/remote-runtime-client', () => ({
+vi.mock('../../shared/remote-runtime/host-store/runtime-environment-store', () => ({
+  resolveEnvironment: mocks.environment
+}))
+vi.mock('../ssh/targets/ssh-target-registry', () => ({ getRegisteredSshState: mocks.state }))
+vi.mock('../../shared/remote-runtime/remote-runtime-client', () => ({
   sendRemoteRuntimeRequestWithStatusPreflight: mocks.call
 }))
-vi.mock('../../shared/runtime-environments', () => ({
+vi.mock('../../shared/remote-runtime/host-catalog/runtime-environments', () => ({
   getPreferredPairedRuntimeConnection: () => ({ endpoint: 'ws://sandbox' })
 }))
-vi.mock('../ssh/orcad-managed-tunnel', () => ({ ensureOrcadManagedTunnel: async () => {} }))
+vi.mock('../managed-server/lifecycle/orcad-managed-tunnel', () => ({
+  ensureOrcadManagedTunnel: async () => {}
+}))
 import { requestSandboxRuntime, sandboxRuntimeEnvironmentId } from './sandbox-runtime-client'
 beforeEach(() => {
   vi.clearAllMocks()

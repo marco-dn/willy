@@ -1,6 +1,6 @@
 import { runProcess } from '@orca/process-host'
 import type { SandboxInspection, SandboxInspectionError } from '../../shared/sandbox-types'
-import { resolveCommandOnLocalPath } from '../ipc/command-path-resolver'
+import { resolveCommandOnLocalPath } from '../ipc/command-path/command-path-resolver'
 import { parseSbxInventory, parseSbxVersion } from './sbx-response'
 
 type SbxInspectionDependencies = {

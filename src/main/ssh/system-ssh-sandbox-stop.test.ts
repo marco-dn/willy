@@ -2,17 +2,15 @@ import { EventEmitter } from 'node:events'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ManagedSandbox } from '../../shared/sandbox-provisioning-types'
 import { configureSandboxLifecycleGuard } from '../sandbox/sandbox-lifecycle-guard'
-import { startSystemSshPortForwardProcess } from './system-ssh-forward-process'
-import { spawnSystemSsh, spawnSystemSshCommand } from './system-ssh-command'
+import { startSystemSshPortForwardProcess } from './system-transport/system-ssh-forward-process'
+import { spawnSystemSsh, spawnSystemSshCommand } from './system-transport/system-ssh-command'
 
 const { spawn, server } = vi.hoisted(() => ({ spawn: vi.fn(), server: vi.fn() }))
-vi.mock('node:child_process', () => ({ spawn }))
+vi.mock('node:child_process', () => ({ spawn, execFile: vi.fn() }))
+vi.mock('@orca/process-host', () => ({ spawnProcess: spawn }))
 vi.mock('node:net', () => ({ createServer: server, connect: vi.fn() }))
 vi.mock('../sandbox/sandbox-command', () => ({ createSandboxCommand: vi.fn() }))
-vi.mock('./ssh-system-fallback', () => ({
-  findSystemSsh: () => '/usr/bin/ssh',
-  buildSshArgs: () => ['--', 'demo.sbx']
-}))
+vi.mock('./system-transport/system-ssh-binary', () => ({ findSystemSsh: () => '/usr/bin/ssh' }))
 
 const target = { id: 'ssh-demo', host: 'demo.sbx', label: 'demo', port: 22, username: 'agent' }
 const record: ManagedSandbox = {

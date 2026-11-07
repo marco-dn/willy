@@ -1,6 +1,6 @@
 import { posix } from 'node:path'
 import { createHash } from 'node:crypto'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import { registerSandboxRuntimeProject } from './sandbox-runtime-registration'
 import { verifySandboxSshIdentity } from './sandbox-ssh-identity'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
@@ -42,7 +42,7 @@ export async function reconcileSandboxProjectBindings(
       throw new Error('Sandbox managed project setup is unavailable.')
     }
     await store.runDurableMutation(() => {
-      store.setProjectSandboxBinding(project.id, {
+      store.setProjectSandboxBinding(project, {
         ...binding,
         executionHostId: hostId,
         runtimeEnvironmentId: registered.environmentId,

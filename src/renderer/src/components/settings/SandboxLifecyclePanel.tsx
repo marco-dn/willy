@@ -27,7 +27,7 @@ export function SandboxLifecyclePanel({
   disabled: boolean
 }): React.JSX.Element {
   useTranslation()
-  const mounted = useMountedRef()
+  const mountedRef = useMountedRef()
   const id = useId()
   const active = useRef(false)
   const refreshSequence = useRef(0)
@@ -43,17 +43,17 @@ export function SandboxLifecyclePanel({
         name: target.name,
         id: target.id
       })
-      if (mounted.current && sequence === refreshSequence.current) {
+      if (mountedRef.current && sequence === refreshSequence.current) {
         setSnapshot(next)
       }
       return next
     } catch (error) {
-      if (mounted.current && sequence === refreshSequence.current) {
+      if (mountedRef.current && sequence === refreshSequence.current) {
         setSnapshot(undefined)
       }
       throw error
     }
-  }, [target.id, target.name, mounted])
+  }, [target.id, target.name, mountedRef])
   const perform = async (operation: () => Promise<void>) => {
     if (active.current) {
       return
@@ -61,30 +61,32 @@ export function SandboxLifecyclePanel({
     active.current = true
     setBusy(true)
     setError(undefined)
-    try {
-      await operation()
-    } catch (error) {
-      if (mounted.current) {
-        setError(error instanceof Error ? error.message : String(error))
+    await (async () => {
+      try {
+        await operation()
+      } catch (error) {
+        if (mountedRef.current) {
+          setError(error instanceof Error ? error.message : String(error))
+        }
       }
-    } finally {
+    })().finally(() => {
       active.current = false
-      if (mounted.current) {
+      if (mountedRef.current) {
         setBusy(false)
       }
-    }
+    })
   }
   useEffect(() => {
     const update = () => {
       void refresh().catch((error: unknown) => {
-        if (mounted.current) {
+        if (mountedRef.current) {
           setError(error instanceof Error ? error.message : String(error))
         }
       })
     }
     update()
     return window.api.repos.onChanged(update)
-  }, [refresh, mounted])
+  }, [refresh, mountedRef])
   const execute = async (action: SandboxLifecycleAction) => {
     await window.api.sandboxes.lifecycle({
       target,
@@ -94,7 +96,7 @@ export function SandboxLifecyclePanel({
         : {}),
       ...(action === 'remove' ? { confirmName } : {})
     })
-    if (mounted.current) {
+    if (mountedRef.current) {
       setConfirmation(undefined)
     }
     await refresh()

@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SandboxCredentialEvent } from '../../../../shared/sandbox-policy-types'
+import type { ITerminalOptions } from '@xterm/xterm'
 const mocks = vi.hoisted(() => ({
   options: vi.fn(),
   open: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock('@xterm/xterm', () => ({
     options: { disableStdin?: boolean } = {}
     cols = 80
     rows = 20
-    constructor(options: object) {
+    constructor(options: ITerminalOptions) {
       mocks.options(options)
     }
     loadAddon() {}

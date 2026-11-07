@@ -48,18 +48,20 @@ export function SandboxProvisionForm({
     }
     setBusy(true)
     setError(undefined)
-    try {
-      const record = await window.api.sandboxes.provision({
-        ...request,
-        gitName: identity?.name,
-        gitEmail: identity?.email
-      })
-      onSubmitted(record, github)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error))
-    } finally {
+    await (async () => {
+      try {
+        const record = await window.api.sandboxes.provision({
+          ...request,
+          gitName: identity?.name,
+          gitEmail: identity?.email
+        })
+        onSubmitted(record, github)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : String(error))
+      }
+    })().finally(() => {
       setBusy(false)
-    }
+    })
   }
   return (
     <section className="space-y-4">

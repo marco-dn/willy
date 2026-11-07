@@ -1,28 +1,28 @@
 import {
   insertNativeChatPastedText,
+  writeNativeChatComposerText,
   type NativeChatComposerInput
 } from './native-chat-composer-input'
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import { appendReturnedDraftText } from '../../../../shared/returned-draft-text'
+import { withQuoteAppended } from './native-chat-selection-quote-draft'
+import { dictationSeparators } from '../../../../shared/dictation-transcript-spacing'
 
-/** Imperative text insertion and focus for the composer textarea, used by the
- *  paste pipeline and the composer's imperative handle. */
+/** Insert/focus through the composer input for paste and imperative callers. */
 export function useNativeChatTypedInsertion(args: {
   textareaRef: RefObject<NativeChatComposerInput | null>
-  caret: number
-  draft: string
+  isComposing: () => boolean
   setDraft: (value: string) => void
   setCaret: Dispatch<SetStateAction<number>>
   setActiveSuggestion: Dispatch<SetStateAction<number>>
 }): {
-  insertTypedText: (text: string) => boolean
+  insertTypedText: (text: string, options?: { dictated?: boolean }) => boolean
   appendText: (text: string) => void
   acceptsText: () => boolean
   insertPastedText: (text: string) => boolean
   focus: () => boolean
   contains: (node: Node | null) => boolean
 } {
-  const { textareaRef, caret, draft, setDraft, setCaret, setActiveSuggestion } = args
+  const { textareaRef, isComposing, setDraft, setCaret, setActiveSuggestion } = args
 
   const usableInput = useCallback((): NativeChatComposerInput | null => {
     const textarea = textareaRef.current
@@ -31,47 +31,54 @@ export function useNativeChatTypedInsertion(args: {
 
   const showDraft = useCallback(
     (textarea: NativeChatComposerInput, next: string, nextCaret: number): void => {
-      textarea.focus()
+      // Mark the draft dirty before the suppressed transaction saves its chip document.
       setDraft(next)
+      // An IME composition owns the field; the draft reaches it once the composition settles.
+      if (!isComposing()) {
+        writeNativeChatComposerText(textarea, next, nextCaret)
+      }
       setCaret(nextCaret)
       setActiveSuggestion(0)
-      requestAnimationFrame(() => {
-        textarea.setSelectionRange(nextCaret, nextCaret)
-      })
     },
-    [setActiveSuggestion, setCaret, setDraft]
+    [isComposing, setActiveSuggestion, setCaret, setDraft]
   )
 
   const insertTypedText = useCallback(
-    (text: string): boolean => {
+    (text: string, options?: { dictated?: boolean }): boolean => {
       const textarea = usableInput()
       if (!textarea) {
         return false
       }
-      const selectionStart = textarea.selectionStart ?? caret
+      const { value } = textarea
+      const selectionStart = textarea.selectionStart ?? value.length
       const selectionEnd = textarea.selectionEnd ?? selectionStart
+      const before = value.slice(0, selectionStart)
+      const after = value.slice(selectionEnd)
+      const { leading, trailing } = options?.dictated
+        ? dictationSeparators(before, text, after)
+        : { leading: '', trailing: '' }
       showDraft(
         textarea,
-        `${draft.slice(0, selectionStart)}${text}${draft.slice(selectionEnd)}`,
-        selectionStart + text.length
+        `${before}${leading}${text}${trailing}${after}`,
+        before.length + leading.length + text.length
       )
       return true
     },
-    [caret, draft, showDraft, usableInput]
+    [showDraft, usableInput]
   )
 
   const appendText = useCallback(
     (text: string): void => {
       const textarea = usableInput()
       if (textarea) {
-        const next = appendReturnedDraftText(draft, text)
+        // A quote the user adds lands after what they typed, as typing it would.
+        const next = withQuoteAppended({ text: textarea.value }, text).text
         showDraft(textarea, next, next.length)
       }
     },
-    [draft, showDraft, usableInput]
+    [showDraft, usableInput]
   )
 
-  // Reads the live input when a delayed clipboard read settles.
   const insertPastedText = useCallback(
     (text: string): boolean => insertNativeChatPastedText(textareaRef.current, text),
     [textareaRef]

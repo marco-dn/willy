@@ -1,5 +1,5 @@
-import { getSshConnectionManager } from '../ssh/ssh-target-registry'
-import { execCommand } from '../ssh/ssh-relay-exec-command'
+import { getSshConnectionManager } from '../ssh/targets/ssh-target-registry'
+import { execCommand } from '../ssh/remote-exec/remote-exec-command'
 import type { SandboxProjectBinding } from '../../shared/sandbox-project-types'
 
 export async function verifySandboxSshIdentity(binding: SandboxProjectBinding): Promise<void> {

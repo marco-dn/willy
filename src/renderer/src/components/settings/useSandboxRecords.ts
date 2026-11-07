@@ -16,33 +16,35 @@ export function useSandboxRecords(revision: number, onInventoryChange: () => voi
         return
       }
       inFlight = true
-      try {
-        const next = await window.api.sandboxes.listManaged()
-        if (!stopped) {
-          const nextSignature = JSON.stringify(
-            next.map(({ name, sandboxId, status, lifecycle }) => ({
-              name,
-              sandboxId,
-              status,
-              lifecycle
-            }))
-          )
-          if (signature.current !== undefined && signature.current !== nextSignature) {
-            onInventoryChange()
+      await (async () => {
+        try {
+          const next = await window.api.sandboxes.listManaged()
+          if (!stopped) {
+            const nextSignature = JSON.stringify(
+              next.map(({ name, sandboxId, status, lifecycle }) => ({
+                name,
+                sandboxId,
+                status,
+                lifecycle
+              }))
+            )
+            if (signature.current !== undefined && signature.current !== nextSignature) {
+              onInventoryChange()
+            }
+            signature.current = nextSignature
+            setRecords(next)
+            setLoaded(true)
+            setError(undefined)
           }
-          signature.current = nextSignature
-          setRecords(next)
-          setLoaded(true)
-          setError(undefined)
+        } catch (error) {
+          if (!stopped) {
+            setError(String(error))
+            setLoaded(false)
+          }
         }
-      } catch (error) {
-        if (!stopped) {
-          setError(String(error))
-          setLoaded(false)
-        }
-      } finally {
+      })().finally(() => {
         inFlight = false
-      }
+      })
     }
     void poll()
     const timer = setInterval(() => {

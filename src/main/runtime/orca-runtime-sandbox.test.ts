@@ -2,22 +2,12 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import type { Repo } from '../../shared/repo-types'
 import type { Project } from '../../shared/project-types'
 import { projectHostSetupProjectionFromRepos } from '../../shared/project-host-setup-projection'
-const mocks = vi.hoisted(() => {
-  const store: unknown = undefined
-  return { identity: vi.fn(), idle: vi.fn(), store }
-})
+const mocks = vi.hoisted(() => ({ identity: vi.fn(), idle: vi.fn() }))
 vi.mock('../sandbox/sandbox-host-identity', () => ({ verifySandboxHostIdentity: mocks.identity }))
 vi.mock('../sandbox/sandbox-project-sessions', () => ({
   assertSandboxProjectSessionsClosed: mocks.idle
 }))
-vi.mock('./orca-runtime-migration-catalog', () => ({
-  OrcaRuntimeWithMigrationCatalog: class {
-    requireStore() {
-      return mocks.store
-    }
-  }
-}))
-import { OrcaRuntimeWithSandbox } from './orca-runtime-sandbox'
+import { OrcaRuntimeService } from './orca-runtime'
 const request = {
   projectId: 'original-project',
   sandboxId: 'box',
@@ -45,8 +35,8 @@ function fixture() {
     getWorktreeMeta: () => undefined,
     getAllWorktreeMeta: () => ({}),
     getProjectHostSetups: () => projectHostSetupProjectionFromRepos(repos).setups,
-    updateRepo: (id: string, updates: Partial<Repo>) => {
-      const repo = repos.find((row) => row.id === id)
+    updateRepo: (target: Repo, updates: Partial<Repo>) => {
+      const repo = repos.find((row) => row.id === target.id)
       if (!repo) {
         return null
       }
@@ -54,8 +44,8 @@ function fixture() {
       sync()
       return repo
     },
-    setProjectSandboxBinding: (id: string, binding: Project['sandboxBinding']) => {
-      const project = projects.find((p) => p.id === id)
+    setProjectSandboxBinding: (target: Project, binding: Project['sandboxBinding']) => {
+      const project = projects.find((p) => p.id === target.id)
       if (!project) {
         throw new Error('missing project')
       }
@@ -63,7 +53,6 @@ function fixture() {
     },
     runDurableMutation: async <T>(mutation: () => { value: T }) => mutation().value
   }
-  mocks.store = store
   const add = vi.fn(async () => {
     const repo: Repo = {
       id: 'repo',
@@ -77,7 +66,9 @@ function fixture() {
     sync()
     return repo
   })
-  return { runtime: new OrcaRuntimeWithSandbox(), store, add }
+  const runtime = new OrcaRuntimeService(null)
+  Object.defineProperty(runtime, 'store', { value: store })
+  return { runtime, store, add }
 }
 beforeEach(() => {
   vi.clearAllMocks()
