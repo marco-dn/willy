@@ -1,3 +1,4 @@
+import { assertSandboxSshLifecycleAllowed } from '../sandbox/sandbox-lifecycle-guard'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { connect, createServer } from 'node:net'
 import { buildSshArgs, findSystemSsh, type SystemSshBuildArgsOptions } from './ssh-system-fallback'
@@ -26,6 +27,7 @@ export function spawnSystemSshPortForward(
   remotePort: number,
   options?: SystemSshBuildArgsOptions
 ): ChildProcess {
+  assertSandboxSshLifecycleAllowed(target)
   const sshPath = findSystemSsh()
   if (!sshPath) {
     throw new Error(

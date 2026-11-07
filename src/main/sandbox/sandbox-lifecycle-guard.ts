@@ -15,9 +15,9 @@ export function assertSandboxLifecycleAllowsExecution(sandboxId: string): void {
     )
   }
 }
-export async function assertSandboxSshConnectionAllowed(
+export function assertSandboxSshLifecycleAllowed(
   target: Pick<SshTarget, 'id' | 'host' | 'configHost'>
-): Promise<void> {
+): void {
   const matches = records().filter(
     (record) =>
       record.sshTargetId === target.id ||
@@ -37,6 +37,20 @@ export async function assertSandboxSshConnectionAllowed(
         `Sandbox ${record.name} is stopped or removed. Start it from Settings → Sandbox.`
       )
     }
+  }
+}
+
+export async function assertSandboxSshConnectionAllowed(
+  target: Pick<SshTarget, 'id' | 'host' | 'configHost'>
+): Promise<void> {
+  assertSandboxSshLifecycleAllowed(target)
+  const matches = records().filter(
+    (record) =>
+      record.sshTargetId === target.id ||
+      (target.configHost ?? target.host) === `${record.name}.sbx`
+  )
+  if (!matches.length) {
+    return
   }
   const run = await createSandboxCommand()
   const inventory = parseSbxInventory(await run(['ls', '--json'])).sandboxes

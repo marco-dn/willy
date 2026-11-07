@@ -1,3 +1,4 @@
+import { assertSandboxSshLifecycleAllowed } from '../sandbox/sandbox-lifecycle-guard'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { connect, createServer, type AddressInfo, type Socket } from 'node:net'
 import type { SshTarget } from '../../shared/ssh-types'
@@ -28,6 +29,7 @@ export async function startSystemSshDynamicForwardProcess(
   if (signal?.aborted) {
     throw new Error('system_ssh_dynamic_forward_aborted')
   }
+  assertSandboxSshLifecycleAllowed(target)
   const args = buildSshArgs(target, {
     ...options,
     suppressOrcaControlMaster: true,

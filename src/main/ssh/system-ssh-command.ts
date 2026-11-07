@@ -1,3 +1,4 @@
+import { assertSandboxSshLifecycleAllowed } from '../sandbox/sandbox-lifecycle-guard'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { Duplex } from 'node:stream'
 import type { ClientChannel } from 'ssh2'
@@ -33,6 +34,7 @@ export function spawnSystemSsh(
   target: SshTarget,
   options?: SystemSshBuildArgsOptions
 ): SystemSshProcess {
+  assertSandboxSshLifecycleAllowed(target)
   const sshPath = findSystemSsh()
   if (!sshPath) {
     throw new Error(
@@ -54,6 +56,7 @@ export function spawnSystemSshCommand(
   command: string,
   options?: SystemSshCommandOptions
 ): SystemSshCommandChannel {
+  assertSandboxSshLifecycleAllowed(target)
   const sshPath = findSystemSsh()
   if (!sshPath) {
     throw new Error(

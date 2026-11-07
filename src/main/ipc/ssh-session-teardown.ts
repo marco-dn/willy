@@ -1,3 +1,5 @@
+import { getManagedOrcadFenceEnvironmentId } from '../../shared/managed-orcad-ssh-owner'
+import { closeOrcadManagedTunnel } from '../ssh/orcad-managed-tunnel'
 import type { DirectSshAuthority } from '../../shared/ssh-types'
 import { getSshTargetRegistryStore } from '../ssh/ssh-target-registry'
 import { clearSshHostServerStatus } from '../ssh/ssh-host-server-status'
@@ -58,6 +60,11 @@ export async function removeRegisteredSshTarget(targetId: string): Promise<void>
 }
 
 export async function teardownSshTargetTransport(targetId: string): Promise<void> {
+  const target = getSshTargetRegistryStore()?.getTarget(targetId)
+  const environmentId = getManagedOrcadFenceEnvironmentId(target)
+  if (environmentId) {
+    await closeOrcadManagedTunnel(environmentId)
+  }
   // COMPAT(legacy-relay-bridge): hangs up only this client; the relays keep their terminals.
   stopLegacyRelayBridge(targetId)
   // Why first: local listeners must be released before disconnect completes, else an immediate
