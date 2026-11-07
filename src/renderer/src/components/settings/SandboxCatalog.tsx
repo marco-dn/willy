@@ -9,6 +9,7 @@ import {
 import type { SandboxSummary } from '../../../../shared/sandbox-types'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import { sandboxStartupCopy } from './sandbox-status-copy'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { SandboxImportPanel } from './SandboxImportPanel'
 import { SandboxProvisionForm } from './SandboxProvisionForm'
@@ -144,7 +145,10 @@ export function SandboxCatalog({
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <span className="break-all text-sm font-medium">{item.name}</span>
                           <div className="flex flex-wrap gap-2">
-                            <Badge variant="secondary">{sandboxCatalogStateCopy(item.state)}</Badge>
+                            <Badge variant="secondary">
+                              {sandboxStartupCopy(item.record?.lifecycle) ??
+                                sandboxCatalogStateCopy(item.state)}
+                            </Badge>
                             <Badge variant="outline">{sandboxManagementCopy(item.record)}</Badge>
                           </div>
                         </div>

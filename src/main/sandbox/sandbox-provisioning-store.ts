@@ -49,6 +49,7 @@ const recordSchema = z.object({
     .object({
       desired: z.enum(['running', 'stopped', 'removed']),
       pending: z.enum(['start', 'stop', 'remove']).optional(),
+      phase: z.literal('connecting').optional(),
       error: z.string().optional()
     })
     .optional(),
@@ -92,6 +93,15 @@ export class SandboxProvisioningStore {
           JSON.parse(readNodeFileSyncWithinLimit(file, MAX_BYTES).buffer.toString('utf8'))
         ).records
       : []
+    for (const record of this.records) {
+      if (record.lifecycle?.phase === 'connecting') {
+        record.lifecycle = {
+          desired: 'running',
+          pending: 'start',
+          error: 'Server connection was interrupted. Start the sandbox again to retry.'
+        }
+      }
+    }
   }
   list(): ManagedSandbox[] {
     return structuredClone(this.records)

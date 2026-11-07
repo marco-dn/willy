@@ -53,6 +53,13 @@ describe('sandbox persistence validation', () => {
     const detached = store.list()
     detached[0].network?.createdIds.push('unowned')
     expect(store.list()).toEqual([stopped])
+    store.save({ ...legacy, lifecycle: { desired: 'running', phase: 'connecting' } })
+    expect(store.list()[0].lifecycle?.phase).toBe('connecting')
+    expect(new SandboxProvisioningStore(file).list()[0].lifecycle).toEqual({
+      desired: 'running',
+      pending: 'start',
+      error: 'Server connection was interrupted. Start the sandbox again to retry.'
+    })
   })
   it('rejects arbitrary scripts, tool names, secrets and control characters at the IPC boundary', () => {
     const request = {

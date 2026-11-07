@@ -1,5 +1,31 @@
 import type { SandboxProvisionStage } from '../../../../shared/sandbox-provisioning-types'
 import { translate } from '@/i18n/i18n'
+import type {
+  SandboxLifecycleState,
+  SandboxLifecycleSnapshot
+} from '../../../../shared/sandbox-lifecycle-types'
+
+export function sandboxLifecycleCopy(snapshot: SandboxLifecycleSnapshot): string {
+  return (
+    sandboxStartupCopy(snapshot.lifecycle) ??
+    (snapshot.state === 'running'
+      ? translate('settings.sandbox.stateRunning', 'Running')
+      : snapshot.state === 'stopped'
+        ? translate('settings.sandbox.stateStopped', 'Stopped')
+        : snapshot.state === 'missing'
+          ? translate('settings.sandbox.stateMissing', 'Removed outside Willy')
+          : translate('settings.sandbox.stateUnavailable', 'State unavailable'))
+  )
+}
+
+export function sandboxStartupCopy(lifecycle?: SandboxLifecycleState): string | null {
+  if (lifecycle?.pending !== 'start' && lifecycle?.phase !== 'connecting') {
+    return null
+  }
+  return lifecycle.error
+    ? translate('settings.sandbox.startIncomplete', 'Startup incomplete')
+    : translate('settings.sandbox.starting', 'Starting…')
+}
 import type { SandboxInspectionError } from '../../../../shared/sandbox-types'
 
 export function sandboxErrorCopy(reason: SandboxInspectionError): string {

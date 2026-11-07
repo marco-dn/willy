@@ -175,9 +175,13 @@ export class SandboxLifecycleService {
         )
       }
       // Keep SSH targets and repository history: they can be reused by unlinked projects.
-      this.save(record, { desired })
+      this.save(record, {
+        desired,
+        ...(action === 'start' && record.sshTargetId ? { phase: 'connecting' as const } : {})
+      })
       if (action === 'start' && record.sshTargetId) {
         await this.deps.connect(record.sshTargetId)
+        this.save(record, { desired })
       }
     } catch (error) {
       this.save(record, {

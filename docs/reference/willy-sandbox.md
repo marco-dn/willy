@@ -17,6 +17,21 @@ This target is for Linux x64 with glibc. Rebuild the server template after chang
 runtime code or updating upstream. Complete `sbx login` if needed and use `sbx ls`
 to confirm the local sandbox service is available before connecting from Willy.
 
+### Linux: Electron SUID sandbox helper error
+
+An Electron upgrade can install a new `chrome-sandbox` binary without its required
+ownership and permissions. If startup aborts with `The SUID sandbox helper binary
+was found, but is not configured correctly`, run these commands from the Willy
+repository directory, then retry the launch command above:
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+Repeat this repair if a later Electron update replaces the binary. Keep Chromium
+sandboxing enabled.
+
 ## Requirements
 
 Settings → Sandbox manages local Docker `sbx` shell sandboxes. Install `sbx`, complete
@@ -42,6 +57,11 @@ not yet registered. Each row separates observed execution state from preparation
 Expand a row in the same list for lifecycle controls, projects and network settings; tool versions
 and recent logs are expandable. Diagnostics contains service information, not another
 sandbox list. A service error reports unknown state rather than removal.
+
+During Start, both the catalog badge and lifecycle details show **Starting…** until
+SSH connection and server preparation finish, even when Docker already reports the
+container running. They then show **Running**. A failed or interrupted connection
+shows **Startup incomplete** and can be retried with Start.
 
 **New sandbox** opens a dedicated form. Once submitted, its detail shows background
 progress. **Close details** collapses the row without cancelling preparation;

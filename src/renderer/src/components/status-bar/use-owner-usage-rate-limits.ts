@@ -7,7 +7,6 @@ import {
   watchProviderAccounts,
   type ProviderAccountsSnapshot
 } from '@/runtime/provider-accounts/observations/runtime-provider-accounts-client'
-import { useActiveAccountOwner } from '@/runtime/use-worktree-runtime-target'
 import type { RateLimitState } from '../../../../shared/rate-limit-types'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { useAppStore } from '../../store'
@@ -52,11 +51,12 @@ export type OwnerUsageRateLimits = {
   refreshRemote: (() => Promise<void>) | null
 }
 
-/** Read provider usage from the focused workspace’s account owner, including that host’s own remote snapshot. */
-export function useOwnerUsageRateLimits(local: RateLimitState): OwnerUsageRateLimits {
+/** Usage stays local unless the caller explicitly requests another account owner. */
+export function useOwnerUsageRateLimits(
+  local: RateLimitState,
+  target: RuntimeClientTarget = LOCAL_TARGET
+): OwnerUsageRateLimits {
   const languageRevision = useUiLanguageRevision()
-  // Why: route by the focused workspace's owner, never by the Active Server setting.
-  const { target } = useActiveAccountOwner(LOCAL_TARGET)
   const ownerId = runtimeTargetEnvironmentId(target)
   const ownerName = useAppStore(
     (s) => s.runtimeEnvironments.find((environment) => environment.id === ownerId)?.name ?? null

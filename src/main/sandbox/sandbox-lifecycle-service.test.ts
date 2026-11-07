@@ -7,6 +7,31 @@ import { SandboxLifecycleService } from './sandbox-lifecycle-service'
 import { SandboxExecutionPolicy } from './sandbox-execution-policy'
 import type { Project } from '../../shared/project-types'
 const target = { name: 'demo', id: 'sandbox-id' }
+
+it('keeps startup in the connecting phase until SSH setup completes', async () => {
+  const f = fixture()
+  f.connect.mockImplementationOnce(async () => {
+    expect(await f.service.snapshot(target)).toMatchObject({
+      state: 'running',
+      lifecycle: { desired: 'running', phase: 'connecting' }
+    })
+  })
+  await f.service.execute({ target, action: 'start' })
+  expect((await f.service.snapshot(target)).lifecycle).toEqual({ desired: 'running' })
+})
+
+it('reports incomplete startup when SSH setup fails after the container starts', async () => {
+  const f = fixture()
+  f.connect.mockRejectedValueOnce(new Error('Server setup failed'))
+  await expect(f.service.execute({ target, action: 'start' })).rejects.toThrow(
+    'Server setup failed'
+  )
+  expect((await f.service.snapshot(target)).lifecycle).toEqual({
+    desired: 'running',
+    pending: 'start',
+    error: 'Server setup failed'
+  })
+})
 function fixture(linked = false) {
   const file = join(mkdtempSync(join(tmpdir(), 'willy-lifecycle-')), 'state.json')
   const records = new SandboxProvisioningStore(file)

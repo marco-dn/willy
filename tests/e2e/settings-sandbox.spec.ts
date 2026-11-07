@@ -4,7 +4,11 @@ import type { SandboxInspection } from '../../src/shared/sandbox-types'
 import { test, expect } from './helpers/orca-app'
 import { waitForSessionReady } from './helpers/store'
 
-async function seedSandboxes(app: ElectronApplication, unavailable = false): Promise<void> {
+async function seedSandboxes(
+  app: ElectronApplication,
+  unavailable = false,
+  startup?: 'connecting' | 'ready'
+): Promise<void> {
   const record: ManagedSandbox = {
     name: 'z-managed',
     sandboxId: 'managed-id',
@@ -15,7 +19,15 @@ async function seedSandboxes(app: ElectronApplication, unavailable = false): Pro
     tools: [],
     logs: [],
     versions: [],
-    updatedAt: 1
+    updatedAt: 1,
+    ...(startup
+      ? {
+          lifecycle: {
+            desired: 'running' as const,
+            ...(startup === 'connecting' ? { phase: 'connecting' as const } : {})
+          }
+        }
+      : {})
   }
   const inspection: SandboxInspection = {
     cliPath: '/fixture/sbx',
@@ -42,7 +54,7 @@ async function seedSandboxes(app: ElectronApplication, unavailable = false): Pro
               id: 'managed-id',
               name: record.name,
               agent: 'shell',
-              status: 'stopped',
+              status: startup ? 'running' : 'stopped',
               workspaces: [record.mountPath]
             }
           ]
@@ -51,14 +63,18 @@ async function seedSandboxes(app: ElectronApplication, unavailable = false): Pro
   await app.evaluate(
     ({ ipcMain }, { record, inspection }) => {
       const records = [record]
-      let state = 'stopped'
+      let state = record.lifecycle ? 'running' : 'stopped'
       const replace = (channel: string, handler: (...args: unknown[]) => unknown) => {
         ipcMain.removeHandler(channel)
         ipcMain.handle(channel, handler)
       }
       replace('sandboxes:inspect', () => inspection)
       replace('sandboxes:listManaged', () => records)
-      replace('sandboxes:lifecycleSnapshot', () => ({ state, projects: [] }))
+      replace('sandboxes:lifecycleSnapshot', () => ({
+        state,
+        projects: [],
+        lifecycle: record.lifecycle
+      }))
       replace('sandboxes:lifecycle', (_event, request) => {
         if (
           typeof request !== 'object' ||
@@ -118,6 +134,21 @@ async function openSandboxSettings(page: Page): Promise<void> {
   await page.getByPlaceholder('Search settings').fill('sandbox')
   await expect(page.getByRole('heading', { name: 'Sandbox', exact: true })).toBeVisible()
 }
+
+test('running container remains Starting until its server connection completes', async ({
+  electronApp,
+  orcaPage
+}) => {
+  await seedSandboxes(electronApp, false, 'connecting')
+  await openSandboxSettings(orcaPage)
+  await orcaPage.getByRole('button', { name: 'Open z-managed', exact: true }).click()
+  await expect(orcaPage.getByText('Starting…', { exact: true })).toHaveCount(2)
+  await expect(orcaPage.getByText('Running', { exact: true })).toHaveCount(0)
+  await seedSandboxes(electronApp, false, 'ready')
+  await orcaPage.getByRole('button', { name: 'Refresh', exact: true }).last().click()
+  await expect(orcaPage.getByText('Running', { exact: true })).toHaveCount(2)
+  await expect(orcaPage.getByText('Starting…', { exact: true })).toHaveCount(0)
+})
 
 test('sandbox catalog groups, inline details and separate creation form', async ({
   electronApp,

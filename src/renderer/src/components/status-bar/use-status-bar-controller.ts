@@ -21,7 +21,7 @@ import { translate } from '@/i18n/i18n'
 export function useStatusBarController(floatingTerminalOpen: boolean) {
   const floatingTerminalShortcut = useShortcutLabel('floatingTerminal.toggle')
   const localRateLimits = useAppStore((s) => s.rateLimits)
-  // Why: with a remote account owner the agents run there, so its usage is the one to show.
+  // The usage bar follows local accounts independently of the selected workspace.
   const { rateLimits, remoteOwner, refreshRemote } = useOwnerUsageRateLimits(localRateLimits)
   const remoteOwned = remoteOwner !== null
   const settings = useAppStore((s) => s.settings)

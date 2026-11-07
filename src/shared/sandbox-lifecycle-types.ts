@@ -3,6 +3,7 @@ export type SandboxLifecycleAction = 'start' | 'stop' | 'remove'
 export type SandboxLifecycleState = {
   desired: 'running' | 'stopped' | 'removed'
   pending?: SandboxLifecycleAction
+  phase?: 'connecting'
   error?: string
 }
 export type SandboxLifecycleSnapshot = {

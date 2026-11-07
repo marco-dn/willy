@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { translate } from '@/i18n/i18n'
 import { useMountedRef } from '@/hooks/useMountedRef'
+import { sandboxLifecycleCopy } from './sandbox-status-copy'
 import type { SandboxTarget } from '../../../../shared/sandbox-policy-types'
 import type {
   SandboxLifecycleAction,
@@ -109,13 +110,7 @@ export function SandboxLifecyclePanel({
       </p>
       {snapshot ? (
         <p role="status" className="text-sm text-muted-foreground">
-          {snapshot.state === 'running'
-            ? translate('settings.sandbox.stateRunning', 'Running')
-            : snapshot.state === 'stopped'
-              ? translate('settings.sandbox.stateStopped', 'Stopped')
-              : snapshot.state === 'missing'
-                ? translate('settings.sandbox.stateMissing', 'Removed outside Willy')
-                : translate('settings.sandbox.stateUnavailable', 'State unavailable')}
+          {sandboxLifecycleCopy(snapshot)}
         </p>
       ) : null}
       {snapshot?.lifecycle?.pending ? (
@@ -202,7 +197,12 @@ export function SandboxLifecyclePanel({
       ) : null}
       {busy ? (
         <p role="status" className="text-sm text-muted-foreground">
-          {translate('settings.sandbox.lifecycleBusy', 'Updating sandbox…')}
+          {snapshot?.lifecycle?.phase === 'connecting'
+            ? translate(
+                'settings.sandbox.connectingServer',
+                'Connecting SSH and preparing the sandbox server…'
+              )
+            : translate('settings.sandbox.lifecycleBusy', 'Updating sandbox…')}
         </p>
       ) : null}
       {error ? (

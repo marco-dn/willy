@@ -77,9 +77,20 @@ describe('useOwnerUsageRateLimits', () => {
   })
   afterEach(() => cleanup())
 
+  it('keeps local usage and account actions while selecting remote workspaces', () => {
+    const { result, rerender } = renderHook(() => useOwnerUsageRateLimits(local))
+    mocks.owner = { kind: 'environment', environmentId: 'sandbox' }
+    rerender()
+    expect(result.current.rateLimits).toBe(local)
+    expect(result.current.remoteOwner).toBeNull()
+    expect(result.current.refreshRemote).toBeNull()
+    expect(mocks.watchers).toHaveLength(0)
+    expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
+  })
+
   it('never shows server A numbers under server B', () => {
     mocks.owner = { kind: 'environment', environmentId: 'mini' }
-    const { result, rerender } = renderHook(() => useOwnerUsageRateLimits(local))
+    const { result, rerender } = renderHook(() => useOwnerUsageRateLimits(local, mocks.owner))
     const first = mocks.watchers[0]
     act(() =>
       first.handlers.onSnapshot(
@@ -102,7 +113,7 @@ describe('useOwnerUsageRateLimits', () => {
     vi.useFakeTimers()
     try {
       mocks.owner = { kind: 'environment', environmentId: 'mini' }
-      const { result } = renderHook(() => useOwnerUsageRateLimits(local))
+      const { result } = renderHook(() => useOwnerUsageRateLimits(local, mocks.owner))
       act(() =>
         mocks.watchers[0].handlers.onSnapshot(
           snapshot(createEmptyRateLimitState({ codex: provider('codex', 30) }))
@@ -129,7 +140,7 @@ describe('useOwnerUsageRateLimits', () => {
         resolveRefresh = resolve
       })
     )
-    const { result, rerender } = renderHook(() => useOwnerUsageRateLimits(local))
+    const { result, rerender } = renderHook(() => useOwnerUsageRateLimits(local, mocks.owner))
     const pending = result.current.refreshRemote?.()
     mocks.owner = { kind: 'environment', environmentId: 'devbox' }
     rerender()

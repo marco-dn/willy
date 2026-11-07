@@ -1372,7 +1372,9 @@
       "prepareSshNotice": "Preparation can configure SSH, install the required base and selected tools, and temporarily open network access. It starts only after you submit this form.",
       "verificationDetails": "Verification details",
       "destinationExample": "example.com:443",
-      "searchKeywords": "sbx Docker sandbox"
+      "searchKeywords": "sbx Docker sandbox",
+      "connectingServer": "Connecting SSH and preparing the sandbox server…",
+      "startIncomplete": "Startup incomplete"
     }
   },
   "menu": {
