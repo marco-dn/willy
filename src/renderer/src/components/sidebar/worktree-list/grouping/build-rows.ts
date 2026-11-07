@@ -1,3 +1,4 @@
+import { sandboxProjectVisibility } from './sandbox-project-visibility'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
@@ -72,6 +73,15 @@ export function buildRows(
   defaultHostId: ExecutionHostId = LOCAL_EXECUTION_HOST_ID,
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy = getPinnedWorktreeDisplayPolicy(settings)
 ): Row[] {
+  const isVisible = sandboxProjectVisibility(projectGrouping)
+  const visibleWorktree = (worktree: Worktree): boolean => {
+    const repo = repoMap.get(worktree.repoId)
+    return !repo || isVisible(repo, worktree.hostId)
+  }
+  worktrees = worktrees.filter(visibleWorktree)
+  worktreeMap = new Map([...worktreeMap].filter(([, worktree]) => visibleWorktree(worktree)))
+  repoMap = new Map([...repoMap].filter(([, repo]) => isVisible(repo)))
+  pendingCreations = pendingCreations.filter((creation) => repoMap.has(creation.repoId))
   const result: Row[] = []
   const projectIndex = buildProjectGroupingIndex(projectGrouping)
   // Membership is decided once, above the groupBy switch: every mode renders the
